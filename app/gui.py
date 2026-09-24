@@ -626,10 +626,14 @@ class PDFBatchPrinterApp(ctk.CTk):
     def _toggle_theme(self):
         if self.theme_switch.get() == 1:
             ctk.set_appearance_mode("Dark")
-            self.theme_switch.configure(text="☀️ Chế độ Sáng")
+            label = "☀️ Chế độ Sáng"
         else:
             ctk.set_appearance_mode("Light")
-            self.theme_switch.configure(text="🌙 Chế độ Tối")
+            label = "🌙 Chế độ Tối"
+        try:
+            self.theme_switch.configure(text=label)
+        except Exception:
+            pass
 
         self.configure(fg_color=THEME_COLORS["bg"])
         self._update_treeview_theme()
@@ -942,24 +946,38 @@ class PDFBatchPrinterApp(ctk.CTk):
             border_color=THEME_COLORS["card_border"],
         )
         card.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
-        card.grid_columnconfigure(1, weight=1)
+        card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             card, text="⚙️ Cài Đặt In Ấn & Tính Năng Mở Rộng",
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
             text_color=THEME_COLORS["text"],
-        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(10, 6))
+        ).grid(row=0, column=0, sticky="w", padx=14, pady=(10, 4))
 
-        # ── 1. Máy In Chính & Làm Mới ────────────────────────────────
-        ctk.CTkLabel(
-            card, text="Máy in:",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=1, column=0, sticky="w", padx=(14, 8), pady=3)
+        def _section(title: str):
+            """Full-width section header with divider. Returns next free row."""
+            r = _section.row
+            ctk.CTkLabel(
+                card, text=title,
+                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+                text_color=THEME_COLORS["primary"][0] if ctk.get_appearance_mode() == "Light" else THEME_COLORS["primary"][1],
+            ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 2))
+            _section.row = r + 1
+            return r + 1
+        _section.row = 1
 
-        p_box = ctk.CTkFrame(card, fg_color="transparent")
-        p_box.grid(row=1, column=1, sticky="ew", padx=(0, 14), pady=3)
+        def _row():
+            f = ctk.CTkFrame(card, fg_color="transparent")
+            f.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=2)
+            f.grid_columnconfigure(0, weight=1)
+            _section.row += 1
+            return f
+
+        # ══ Section 1: Máy in ══════════════════════════════════════
+        _section("🖨️  MÁY IN")
+        p_box = _row()
         p_box.grid_columnconfigure(0, weight=1)
+        p_box.grid_columnconfigure(1, weight=0)
 
         self.printer_combo = ctk.CTkComboBox(
             p_box, variable=self._printer_var,
@@ -970,7 +988,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.printer_combo.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         ctk.CTkButton(
-            p_box, text="⟳ Làm mới", width=76, height=30,
+            p_box, text="⟳ Làm mới", width=80, height=30,
             command=self.refresh_printers,
             fg_color=THEME_COLORS["btn_secondary"],
             hover_color=THEME_COLORS["btn_secondary_hover"],
@@ -983,21 +1001,32 @@ class PDFBatchPrinterApp(ctk.CTk):
             card, text="", font=ctk.CTkFont(family="Segoe UI", size=10),
             text_color=THEME_COLORS["text_muted"],
         )
-        self.printer_status_lbl.grid(row=2, column=1, sticky="w", padx=(0, 14), pady=(0, 2))
+        self.printer_status_lbl.grid(row=_section.row, column=0, sticky="w", padx=14, pady=(0, 2))
+        _section.row += 1
 
-        # ── 2. Số Bản In (Tệp Đang Chọn) — ƯU TIÊN ĐẶT LÊN ĐẦU ────────
-        ctk.CTkLabel(
-            card, text="Số bản in:",
+        # ══ Section 2: Tệp đang chọn (số bản + trang in) ═══════════
+        _section("📄  TỆP ĐANG CHỌN")
+
+        # File name — full width, truncated
+        self.selected_file_lbl = ctk.CTkLabel(
+            card, text="📄 (Chưa chọn tệp)",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             text_color=THEME_COLORS["text"],
-        ).grid(row=3, column=0, sticky="w", padx=(14, 8), pady=3)
+            anchor="w",
+        )
+        self.selected_file_lbl.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=(0, 2))
+        _section.row += 1
 
-        c_box = ctk.CTkFrame(card, fg_color="transparent")
-        c_box.grid(row=3, column=1, sticky="ew", padx=(0, 14), pady=3)
+        # Copies stepper
+        c_box = _row()
+        ctk.CTkLabel(
+            c_box, text="Số bản in:",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            text_color=THEME_COLORS["text"],
+        ).pack(side="left", padx=(0, 8))
 
-        # Stepper buttons
         ctk.CTkButton(
-            c_box, text="−", width=28, height=28,
+            c_box, text="−", width=30, height=28,
             command=self._dec_copies,
             fg_color=THEME_COLORS["btn_secondary"],
             hover_color=THEME_COLORS["btn_secondary_hover"],
@@ -1008,7 +1037,7 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         self.copies_entry = ctk.CTkEntry(
             c_box, textvariable=self._copies_var,
-            width=48, height=28, justify="center",
+            width=52, height=28, justify="center",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=6,
         )
@@ -1017,7 +1046,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.copies_entry.bind("<FocusOut>", lambda e: self._on_copies_entry_enter())
 
         ctk.CTkButton(
-            c_box, text="+", width=28, height=28,
+            c_box, text="+", width=30, height=28,
             command=self._inc_copies,
             fg_color=THEME_COLORS["btn_secondary"],
             hover_color=THEME_COLORS["btn_secondary_hover"],
@@ -1026,185 +1055,177 @@ class PDFBatchPrinterApp(ctk.CTk):
             corner_radius=6,
         ).pack(side="left")
 
-        # Name of currently selected document
-        self.selected_file_lbl = ctk.CTkLabel(
-            c_box, text="📄 (Chưa chọn tệp)",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text_muted"],
-            anchor="w",
-        )
-        self.selected_file_lbl.pack(side="left", padx=(8, 0), fill="x", expand=True)
-
-        # ── 3. Số Bản Mặc Định (Áp Dụng Hàng Loạt) ────────────────────
-        ctk.CTkLabel(
-            card, text="Số bản mặc định:",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=4, column=0, sticky="w", padx=(14, 8), pady=3)
-
-        def_box = ctk.CTkFrame(card, fg_color="transparent")
-        def_box.grid(row=4, column=1, sticky="w", padx=(0, 14), pady=3)
-
-        self.default_copies_entry = ctk.CTkEntry(
-            def_box, textvariable=self._default_copies_var,
-            width=48, height=28, justify="center",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            corner_radius=6,
-        )
-        self.default_copies_entry.pack(side="left", padx=(0, 6))
-
         ctk.CTkButton(
-            def_box, text="📋 Áp dụng cho tất cả", height=28,
-            command=self._apply_default_copies_to_all,
-            fg_color=THEME_COLORS["primary"],
-            hover_color=THEME_COLORS["primary_hover"],
-            text_color="#FFFFFF",
+            c_box, text="✏️ Sửa", width=56, height=28,
+            command=self._edit_selected_copies,
+            fg_color=THEME_COLORS["btn_secondary"],
+            hover_color=THEME_COLORS["btn_secondary_hover"],
+            text_color=THEME_COLORS["btn_secondary_text"],
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=6,
-        ).pack(side="left")
+        ).pack(side="left", padx=(4, 0))
 
-        # ── 4. Trang In ──────────────────────────────────────────────
-        ctk.CTkLabel(
-            card, text="Trang in:",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=5, column=0, sticky="w", padx=(14, 8), pady=3)
-
-        pg_wrap = ctk.CTkFrame(card, fg_color="transparent")
-        pg_wrap.grid(row=5, column=1, sticky="w", padx=(0, 14), pady=3)
-
-        self.page_file_lbl = ctk.CTkLabel(
-            pg_wrap, text="📄 Chưa chọn tệp tin",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
-            text_color=THEME_COLORS["text_muted"],
-        )
-        self.page_file_lbl.pack(anchor="w")
-
-        pg_box = ctk.CTkFrame(pg_wrap, fg_color="transparent")
-        pg_box.pack(anchor="w", pady=(2, 0))
-
+        # Page mode + custom entry (full-width rows)
+        pg_mode_row = _row()
         self.page_range_combo = ctk.CTkComboBox(
-            pg_box, values=PAGE_RANGE_OPTIONS, variable=self._page_range_var,
-            width=140, height=28, state="readonly",
+            pg_mode_row, values=PAGE_RANGE_OPTIONS, variable=self._page_range_var,
+            height=30, state="readonly",
             command=self._on_page_range_change,
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         )
-        self.page_range_combo.pack(side="left")
+        self.page_range_combo.pack(fill="x")
 
+        pg_custom_row = _row()
         self.custom_pages_entry = ctk.CTkEntry(
-            pg_box, textvariable=self._custom_pages_var,
-            width=110, height=28, placeholder_text="1-5, 8-12",
+            pg_custom_row, textvariable=self._custom_pages_var,
+            height=30, placeholder_text="Ví dụ: 1,3,5-8,12",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         )
         self.custom_pages_entry.bind("<Return>", lambda e: self._commit_custom_pages())
         self.custom_pages_entry.bind("<FocusOut>", lambda e: self._commit_custom_pages())
         self._custom_pages_visible = False
+        # NOTE: entry packed/unpacked dynamically by _refresh_custom_pages_visibility
 
+        self.page_file_lbl = ctk.CTkLabel(
+            card, text="",
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            text_color=THEME_COLORS["text_muted"],
+            anchor="w",
+        )
+        self.page_file_lbl.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=(0, 2))
+        _section.row += 1
+
+        pg_apply_row = _row()
+        pg_apply_row.grid_columnconfigure(0, weight=1)
+        pg_apply_row.grid_columnconfigure(1, weight=1)
         ctk.CTkButton(
-            pg_box, text="📋 Áp dụng cho tất cả", height=28,
+            pg_apply_row, text="📋 Trang cho tất cả", height=28,
             command=self._apply_pages_to_all,
             fg_color=THEME_COLORS["btn_secondary"],
             hover_color=THEME_COLORS["btn_secondary_hover"],
             text_color=THEME_COLORS["btn_secondary_text"],
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=6,
-        ).pack(side="left", padx=(6, 0))
-
-        # ── 5. Khổ Giấy & Chiều In ───────────────────────────────────
-        ctk.CTkLabel(
-            card, text="Giấy / Chiều:",
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        ctk.CTkButton(
+            pg_apply_row, text="📋 Bản cho tất cả", height=28,
+            command=self._apply_default_copies_to_all,
+            fg_color=THEME_COLORS["btn_secondary"],
+            hover_color=THEME_COLORS["btn_secondary_hover"],
+            text_color=THEME_COLORS["btn_secondary_text"],
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=6, column=0, sticky="w", padx=(14, 8), pady=3)
+            corner_radius=6,
+        ).grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
-        self._paper_box = ctk.CTkFrame(card, fg_color="transparent")
-        self._paper_box.grid(row=6, column=1, sticky="ew", padx=(0, 14), pady=3)
-        self._paper_box.grid_columnconfigure(0, weight=1)
-        self._paper_box.grid_columnconfigure(1, weight=1)
+        # Default copies (compact row)
+        def_row = _row()
+        ctk.CTkLabel(
+            def_row, text="Số bản mặc định:",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=THEME_COLORS["text_muted"],
+        ).pack(side="left", padx=(0, 8))
+        self.default_copies_entry = ctk.CTkEntry(
+            def_row, textvariable=self._default_copies_var,
+            width=52, height=28, justify="center",
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            corner_radius=6,
+        )
+        self.default_copies_entry.pack(side="left")
 
+        # ══ Section 3: Giấy & kiểu in ══════════════════════════════
+        _section("📐  GIẤY & KIỂU IN")
+
+        ctk.CTkLabel(card, text="Khổ giấy:", font=ctk.CTkFont(size=11),
+                     text_color=THEME_COLORS["text_muted"]).grid(
+            row=_section.row, column=0, sticky="w", padx=14, pady=(0, 0))
+        _section.row += 1
+        paper_row = _row()
+        self._paper_box = ctk.CTkFrame(paper_row, fg_color="transparent")
+        self._paper_box.pack(fill="x")
         ctk.CTkComboBox(
             self._paper_box, values=list(PAPER_SIZES.keys()) + [CUSTOM_PAPER_LABEL],
             variable=self._paper_var,
-            height=28, state="readonly",
+            height=30, state="readonly",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
             command=self._on_paper_change,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        ).pack(fill="x")
 
-        ctk.CTkComboBox(
-            self._paper_box, values=ORIENTATION_OPTIONS, variable=self._orient_var,
-            height=28, state="readonly",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            corner_radius=8,
-        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
-
-        # ── 5b. Khổ giấy tùy chỉnh (Rộng x Cao, mm) ───────────────────
+        # Custom W×H (hidden unless custom paper chosen)
         self._custom_paper_w = tk.StringVar(value=self._cfg.get("custom_paper_w", "210"))
         self._custom_paper_h = tk.StringVar(value=self._cfg.get("custom_paper_h", "297"))
-        self.custom_paper_frame = ctk.CTkFrame(card, fg_color="transparent")
-        self.custom_paper_frame.grid(row=6, column=1, sticky="ew", padx=(0, 14), pady=(0, 3))
-        self.custom_paper_frame.grid_columnconfigure((0, 2, 4), weight=1)
-        ctk.CTkLabel(self.custom_paper_frame, text="Rộng:", font=ctk.CTkFont(size=11)).grid(row=0, column=0)
-        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_w, width=56, height=26).grid(row=0, column=1, padx=2)
-        ctk.CTkLabel(self.custom_paper_frame, text="× Cao:", font=ctk.CTkFont(size=11)).grid(row=0, column=2)
-        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_h, width=56, height=26).grid(row=0, column=3, padx=2)
-        ctk.CTkLabel(self.custom_paper_frame, text="mm", font=ctk.CTkFont(size=11)).grid(row=0, column=4)
+        self.custom_paper_frame = ctk.CTkFrame(paper_row, fg_color="transparent")
+        ctk.CTkLabel(self.custom_paper_frame, text="Rộng (mm):",
+                     font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_w,
+                     width=60, height=28).pack(side="left", padx=4)
+        ctk.CTkLabel(self.custom_paper_frame, text="× Cao (mm):",
+                     font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_h,
+                     width=60, height=28).pack(side="left", padx=4)
         for v in (self._custom_paper_w, self._custom_paper_h):
             v.trace_add("write", lambda *_: self._on_custom_paper_typed())
 
-        # ── 6. In 2 Mặt (Duplex) ─────────────────────────────────────
-        ctk.CTkLabel(
-            card, text="In 2 mặt:",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=7, column=0, sticky="w", padx=(14, 8), pady=3)
+        ctk.CTkLabel(card, text="Chiều in:", font=ctk.CTkFont(size=11),
+                     text_color=THEME_COLORS["text_muted"]).grid(
+            row=_section.row, column=0, sticky="w", padx=14, pady=(4, 0))
+        _section.row += 1
+        orient_row = _row()
+        ctk.CTkComboBox(
+            orient_row, values=ORIENTATION_OPTIONS, variable=self._orient_var,
+            height=30, state="readonly",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            corner_radius=8,
+        ).pack(fill="x")
 
-        dup_box = ctk.CTkFrame(card, fg_color="transparent")
-        dup_box.grid(row=7, column=1, sticky="w", padx=(0, 14), pady=3)
-
+        ctk.CTkLabel(card, text="In 2 mặt:", font=ctk.CTkFont(size=11),
+                     text_color=THEME_COLORS["text_muted"]).grid(
+            row=_section.row, column=0, sticky="w", padx=14, pady=(4, 0))
+        _section.row += 1
+        dup_row = _row()
         for text in DUPLEX_MODES:
             ctk.CTkRadioButton(
-                dup_box, text=text, variable=self._duplex_var, value=text,
+                dup_row, text=text, variable=self._duplex_var, value=text,
                 font=ctk.CTkFont(family="Segoe UI", size=11),
                 text_color=THEME_COLORS["text"],
                 radiobutton_width=16, radiobutton_height=16,
-            ).pack(side="left", padx=(0, 6))
+            ).pack(anchor="w", pady=1)
 
-        # ── 7. Căn Lề Đóng Gáy & Máy In Dự Phòng (Failover) ──────────
-        ctk.CTkLabel(
-            card, text="Lề / Dự phòng:",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text"],
-        ).grid(row=8, column=0, sticky="w", padx=(14, 8), pady=3)
-
-        adv_box = ctk.CTkFrame(card, fg_color="transparent")
-        adv_box.grid(row=8, column=1, sticky="ew", padx=(0, 14), pady=3)
-        adv_box.grid_columnconfigure(0, weight=1)
-        adv_box.grid_columnconfigure(1, weight=1)
-
+        ctk.CTkLabel(card, text="Lề đóng gáy:", font=ctk.CTkFont(size=11),
+                     text_color=THEME_COLORS["text_muted"]).grid(
+            row=_section.row, column=0, sticky="w", padx=14, pady=(4, 0))
+        _section.row += 1
+        margin_row = _row()
         self.margin_combo = ctk.CTkComboBox(
-            adv_box, values=list(BINDING_MARGIN_OPTIONS.keys()),
+            margin_row, values=list(BINDING_MARGIN_OPTIONS.keys()),
             variable=self._binding_margin_var,
-            height=28, state="readonly",
+            height=30, state="readonly",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         )
-        self.margin_combo.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.margin_combo.pack(fill="x")
 
+        ctk.CTkLabel(card, text="Máy in dự phòng:", font=ctk.CTkFont(size=11),
+                     text_color=THEME_COLORS["text_muted"]).grid(
+            row=_section.row, column=0, sticky="w", padx=14, pady=(4, 0))
+        _section.row += 1
+        failover_row = _row()
         self.failover_combo = ctk.CTkComboBox(
-            adv_box, values=["(Không dùng)"],
+            failover_row, values=["(Không dùng)"],
             variable=self._failover_printer_var,
-            height=28, state="readonly",
+            height=30, state="readonly",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         )
-        self.failover_combo.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self.failover_combo.pack(fill="x")
 
-        # ── 8. Tùy Chọn Thông Minh (Checkboxes) ──────────────────────
+        # ══ Section 4: Tùy chọn thông minh ═════════════════════════
+        _section("✨  TÙY CHỌN")
         smart_frame = ctk.CTkFrame(card, fg_color=THEME_COLORS["card_alt"], corner_radius=8)
-        smart_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=14, pady=4)
+        smart_frame.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=2)
+        _section.row += 1
         smart_frame.grid_columnconfigure(0, weight=1)
         smart_frame.grid_columnconfigure(1, weight=1)
 
@@ -1240,9 +1261,10 @@ class PDFBatchPrinterApp(ctk.CTk):
             checkbox_width=16, checkbox_height=16, corner_radius=4,
         ).grid(row=1, column=1, sticky="w", padx=8, pady=(0, 4))
 
-        # ── 9. In Song Song Ra Nhiều Máy In & Warning ────────────────
+        # ── In song song ─────────────────────────────────────────────
         parallel_bar = ctk.CTkFrame(card, fg_color="transparent")
-        parallel_bar.grid(row=10, column=0, columnspan=2, sticky="ew", padx=14, pady=(2, 8))
+        parallel_bar.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=(4, 10))
+        _section.row += 1
 
         ctk.CTkButton(
             parallel_bar, text="🖨️ In song song nhiều máy in...",
@@ -1625,7 +1647,8 @@ class PDFBatchPrinterApp(ctk.CTk):
             if 0 <= idx < len(self.file_list):
                 finfo = self.file_list[idx]
                 if hasattr(self, "selected_file_lbl"):
-                    self.selected_file_lbl.configure(text=f"📄 {finfo.filename}", text_color=THEME_COLORS["text"])
+                    name = finfo.filename if len(finfo.filename) <= 32 else finfo.filename[:31] + "…"
+                    self.selected_file_lbl.configure(text=f"📄 {name}", text_color=THEME_COLORS["text"])
                 self._copies_var.set(finfo.copies)
                 self._sync_page_ui_from_selection()
         except Exception:
@@ -2693,12 +2716,14 @@ class PDFBatchPrinterApp(ctk.CTk):
     def _refresh_custom_pages_visibility(self):
         if self._page_range_var.get() == PAGE_RANGE_CUSTOM:
             if not self._custom_pages_visible:
-                self.custom_pages_entry.pack(
-                    after=self.page_range_combo, side="left", padx=(6, 0))
+                self.custom_pages_entry.pack(fill="x")
                 self._custom_pages_visible = True
         else:
             if self._custom_pages_visible:
-                self.custom_pages_entry.pack_forget()
+                try:
+                    self.custom_pages_entry.pack_forget()
+                except Exception:
+                    pass
                 self._custom_pages_visible = False
 
     def _on_page_range_change(self, _v=None):
@@ -2797,11 +2822,9 @@ class PDFBatchPrinterApp(ctk.CTk):
         is_custom = self._paper_var.get() == CUSTOM_PAPER_LABEL
         try:
             if is_custom:
-                self._paper_box.grid_remove()
-                self.custom_paper_frame.grid()
+                self.custom_paper_frame.pack(fill="x", pady=(6, 0))
             else:
-                self.custom_paper_frame.grid_remove()
-                self._paper_box.grid()
+                self.custom_paper_frame.pack_forget()
         except Exception:
             pass
         self._save_config()
