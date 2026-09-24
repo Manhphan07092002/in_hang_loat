@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 build/
-dist/
 .pytest_cache/
 *.egg-info/
+# File cai dat exe dung Git LFS (theo doi trong .gitattributes)
+!dist/*.exe
