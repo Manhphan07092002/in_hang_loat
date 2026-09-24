@@ -1105,14 +1105,14 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         ctk.CTkLabel(
             prog_header, text="📊 TIẾN TRÌNH IN",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             text_color=THEME_COLORS["text"],
         ).pack(side="left")
 
         self.status_lbl = ctk.CTkLabel(
             prog_header, text="🟢 Sẵn sàng in",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=THEME_COLORS["text_muted"],
+            text_color=THEME_COLORS["text"],
         )
         self.status_lbl.pack(side="right")
 
@@ -1130,16 +1130,17 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.file_progress_title.grid(row=0, column=0, sticky="w", padx=(0, 6), pady=2)
 
         self.file_progress = ctk.CTkProgressBar(
-            prog_wrap, height=10, corner_radius=5,
+            prog_wrap, height=12, corner_radius=6,
             progress_color=THEME_COLORS["primary"][0],
+            fg_color=("#CBD5E1", "#334155"),
         )
         self.file_progress.grid(row=0, column=1, sticky="ew", padx=6, pady=2)
         self.file_progress.set(0)
 
         self.file_progress_lbl = ctk.CTkLabel(
             prog_wrap, text="0/0 trang",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
-            text_color=THEME_COLORS["text_muted"], width=80,
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=THEME_COLORS["text"], width=80,
         )
         self.file_progress_lbl.grid(row=0, column=2, sticky="e", pady=2)
 
@@ -1152,16 +1153,17 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.total_progress_title.grid(row=1, column=0, sticky="w", padx=(0, 6), pady=2)
 
         self.total_progress = ctk.CTkProgressBar(
-            prog_wrap, height=10, corner_radius=5,
+            prog_wrap, height=12, corner_radius=6,
             progress_color=THEME_COLORS["success"][0],
+            fg_color=("#CBD5E1", "#334155"),
         )
         self.total_progress.grid(row=1, column=1, sticky="ew", padx=6, pady=2)
         self.total_progress.set(0)
 
         self.total_progress_lbl = ctk.CTkLabel(
             prog_wrap, text="0/0 tệp",
-            font=ctk.CTkFont(family="Segoe UI", size=10),
-            text_color=THEME_COLORS["text_muted"], width=80,
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=THEME_COLORS["text"], width=80,
         )
         self.total_progress_lbl.grid(row=1, column=2, sticky="e", pady=2)
 
@@ -1170,12 +1172,14 @@ class PDFBatchPrinterApp(ctk.CTk):
         btn_bar.grid(row=2, column=0, sticky="ew", padx=14, pady=(2, 6))
 
         self.btn_start = ctk.CTkButton(
-            btn_bar, text="▶️ BẮT ĐẦU IN", height=40,
+            btn_bar, text="▶️ BẮT ĐẦU IN", height=42,
             command=self.start_print,
             fg_color=THEME_COLORS["success"],
             hover_color=THEME_COLORS["success_hover"],
             text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
+            border_width=1,
+            border_color=THEME_COLORS["success_hover"],
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
             corner_radius=8,
         )
         self.btn_start.pack(fill="x", pady=(0, 4))
@@ -1187,23 +1191,27 @@ class PDFBatchPrinterApp(ctk.CTk):
         sub_ctrl_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_pause = ctk.CTkButton(
-            sub_ctrl_bar, text="⏸️ Tạm Dừng", height=32,
+            sub_ctrl_bar, text="⏸️ Tạm Dừng", height=34,
             command=self.pause_print, state="disabled",
             fg_color=THEME_COLORS["warning"],
             hover_color=THEME_COLORS["warning_hover"],
             text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            border_width=1,
+            border_color=THEME_COLORS["warning_hover"],
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             corner_radius=8,
         )
         self.btn_pause.grid(row=0, column=0, sticky="ew", padx=(0, 3))
 
         self.btn_cancel = ctk.CTkButton(
-            sub_ctrl_bar, text="⏹️ Hủy In", height=32,
+            sub_ctrl_bar, text="⏹️ Hủy In", height=34,
             command=self.cancel_print, state="disabled",
             fg_color=THEME_COLORS["danger"],
             hover_color=THEME_COLORS["danger_hover"],
             text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            border_width=1,
+            border_color=THEME_COLORS["danger_hover"],
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             corner_radius=8,
         )
         self.btn_cancel.grid(row=0, column=1, sticky="ew", padx=(3, 0))
@@ -1215,23 +1223,27 @@ class PDFBatchPrinterApp(ctk.CTk):
         sub_btn_bar.grid_columnconfigure(1, weight=1)
 
         self.btn_print_selected = ctk.CTkButton(
-            sub_btn_bar, text="🎯 Chỉ In Mục Chọn", height=30,
+            sub_btn_bar, text="🎯 Chỉ In Mục Chọn", height=32,
             command=self.start_print_selected,
             fg_color=THEME_COLORS["primary"],
             hover_color=THEME_COLORS["primary_hover"],
             text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            border_width=1,
+            border_color=THEME_COLORS["primary_hover"],
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=8,
         )
         self.btn_print_selected.grid(row=0, column=0, sticky="ew", padx=(0, 3))
 
         self.btn_retry_failed = ctk.CTkButton(
-            sub_btn_bar, text="🔄 In Lại Tệp Lỗi / Hủy", height=30,
+            sub_btn_bar, text="🔄 In Lại Tệp Lỗi / Hủy", height=32,
             command=self.retry_failed_prints,
             fg_color=THEME_COLORS["btn_secondary"],
             hover_color=THEME_COLORS["btn_secondary_hover"],
             text_color=THEME_COLORS["btn_secondary_text"],
-            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            border_width=1,
+            border_color=("#94A3B8", "#475569"),
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=8,
         )
         self.btn_retry_failed.grid(row=0, column=1, sticky="ew", padx=(3, 0))
