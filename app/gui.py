@@ -1077,6 +1077,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.page_range_combo.pack(fill="x")
 
         pg_custom_row = _row()
+        self._pg_custom_row = pg_custom_row
+        pg_custom_row.grid_remove()  # CTkFrame trống mặc định cao 200px → ẩn hẳn tới khi cần
         self.custom_pages_entry = ctk.CTkEntry(
             pg_custom_row, textvariable=self._custom_pages_var,
             height=30, placeholder_text="Ví dụ: 1,3,5-8,12",
@@ -1086,6 +1088,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.custom_pages_entry.bind("<Return>", lambda e: self._commit_custom_pages())
         self.custom_pages_entry.bind("<FocusOut>", lambda e: self._commit_custom_pages())
         self._custom_pages_visible = False
+        self._custom_pages_packed = False
         # NOTE: entry packed/unpacked dynamically by _refresh_custom_pages_visibility
 
         self.page_file_lbl = ctk.CTkLabel(
@@ -2716,12 +2719,18 @@ class PDFBatchPrinterApp(ctk.CTk):
     def _refresh_custom_pages_visibility(self):
         if self._page_range_var.get() == PAGE_RANGE_CUSTOM:
             if not self._custom_pages_visible:
-                self.custom_pages_entry.pack(fill="x")
+                try:
+                    self._pg_custom_row.grid()
+                except Exception:
+                    pass
+                if not getattr(self, "_custom_pages_packed", False):
+                    self.custom_pages_entry.pack(fill="x")
+                    self._custom_pages_packed = True
                 self._custom_pages_visible = True
         else:
             if self._custom_pages_visible:
                 try:
-                    self.custom_pages_entry.pack_forget()
+                    self._pg_custom_row.grid_remove()
                 except Exception:
                     pass
                 self._custom_pages_visible = False
