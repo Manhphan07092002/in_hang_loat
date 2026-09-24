@@ -1383,39 +1383,20 @@ class PDFBatchPrinterApp(ctk.CTk):
         smart_frame.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=2)
         _section.row += 1
         smart_frame.grid_columnconfigure(0, weight=1)
-        smart_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkCheckBox(
-            smart_frame, text="🚫 Tự động bỏ trang trắng",
-            variable=self._remove_blanks_var,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text"],
-            checkbox_width=16, checkbox_height=16, corner_radius=4,
-        ).grid(row=0, column=0, sticky="w", padx=8, pady=4)
-
-        ctk.CTkCheckBox(
-            smart_frame, text="🔄 In đảo ngược (Cuối → 1)",
-            variable=self._reverse_order_var,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text"],
-            checkbox_width=16, checkbox_height=16, corner_radius=4,
-        ).grid(row=0, column=1, sticky="w", padx=8, pady=4)
-
-        ctk.CTkCheckBox(
-            smart_frame, text="📄 Chèn tờ bìa phân cách",
-            variable=self._separator_sheet_var,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text"],
-            checkbox_width=16, checkbox_height=16, corner_radius=4,
-        ).grid(row=1, column=0, sticky="w", padx=8, pady=(0, 4))
-
-        ctk.CTkCheckBox(
-            smart_frame, text="📐 Vừa trang giấy (Fit to page)",
-            variable=self._fit_to_page,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text"],
-            checkbox_width=16, checkbox_height=16, corner_radius=4,
-        ).grid(row=1, column=1, sticky="w", padx=8, pady=(0, 4))
+        for _r, (_txt, _var) in enumerate([
+            ("🚫 Tự động bỏ trang trắng", self._remove_blanks_var),
+            ("🔄 In đảo ngược (Cuối → 1)", self._reverse_order_var),
+            ("📄 Chèn tờ bìa phân cách", self._separator_sheet_var),
+            ("📐 Vừa trang giấy (Fit to page)", self._fit_to_page),
+        ]):
+            ctk.CTkCheckBox(
+                smart_frame, text=_txt,
+                variable=_var,
+                font=ctk.CTkFont(family="Segoe UI", size=11),
+                text_color=THEME_COLORS["text"],
+                checkbox_width=16, checkbox_height=16, corner_radius=4,
+            ).grid(row=_r, column=0, sticky="w", padx=8, pady=2)
 
         # ── In song song ─────────────────────────────────────────────
         parallel_bar = ctk.CTkFrame(card, fg_color="transparent")
