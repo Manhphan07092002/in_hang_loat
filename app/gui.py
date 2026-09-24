@@ -612,9 +612,18 @@ class PDFBatchPrinterApp(ctk.CTk):
             self._on_close()
 
     def _on_header_resize(self, event):
-        """Adapt header items so brand title and right controls never collide on narrow screens."""
+        """Hide the type badge below 960px so header never clips.
+
+        Guarded by state: layout changes re-fire <Configure>, so only act
+        on transitions (no flicker loop). MIN_SIZE width is 860, therefore
+        deeper collapsing is unnecessary — toolbar/table/scrollbars cover it.
+        """
         try:
-            if event.width < 960:
+            narrow = event.width < 960
+            if narrow == getattr(self, "_header_narrow", None):
+                return
+            self._header_narrow = narrow
+            if narrow:
                 if self.type_badge.winfo_ismapped():
                     self.type_badge.pack_forget()
             else:
@@ -653,15 +662,20 @@ class PDFBatchPrinterApp(ctk.CTk):
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew", padx=12, pady=10)
         body.grid_rowconfigure(0, weight=1)
-        body.grid_columnconfigure(0, weight=62)  # Column 0: Left (Queue + Summary + Log) ~62%
-        body.grid_columnconfigure(1, weight=38)  # Column 1: Right (Settings + Progress + Actions) ~38%
+        # Responsive: trái co giãn tự do (minsize=0 để không ép cửa sổ),
+        # phải cố định ~340px (minsize=320, weight=0 nên không phình khi maximize).
+        # MIN_SIZE (860) đảm bảo breakpoint <850 không bao giờ tới được.
+        body.grid_columnconfigure(0, weight=1, minsize=0)
+        body.grid_columnconfigure(1, weight=0, minsize=320)
+        self._body = body
 
         # ── Column 0: Left Column (Queue Table, Summary & Log Box) ────
         left_col = ctk.CTkFrame(body, fg_color="transparent")
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 6), pady=0)
         left_col.grid_rowconfigure(0, weight=7)  # Queue Card
         left_col.grid_rowconfigure(1, weight=3)  # Log Card
-        left_col.grid_columnconfigure(0, weight=1)
+        left_col.grid_columnconfigure(0, weight=1, minsize=0)
+        self._left_col = left_col
 
         self._build_queue_card(left_col)
         self._build_log_card(left_col)
@@ -671,7 +685,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         right_col.grid(row=0, column=1, sticky="nsew", padx=(6, 0), pady=0)
         right_col.grid_rowconfigure(0, weight=1)  # Settings Card (Scrollable)
         right_col.grid_rowconfigure(1, weight=0)  # Progress & Actions Card (Docked Bottom)
-        right_col.grid_columnconfigure(0, weight=1)
+        right_col.grid_columnconfigure(0, weight=1, minsize=0)
+        self._right_col = right_col
 
         # Printer & Settings Card (at top)
         self._build_settings_card(right_col)
@@ -693,64 +708,63 @@ class PDFBatchPrinterApp(ctk.CTk):
         card.grid_rowconfigure(1, weight=1)
         card.grid_columnconfigure(0, weight=1)
 
-        # ── 2-Row Responsive Toolbar ─────────────────────────────────
+        # ── Responsive Toolbar: 1 khung flow duy nhất, nút tự xuống
+        #  dòng theo chiều rộng (grid, KHÔNG pack跨-frame vì Tk cấm) ──
         toolbar = ctk.CTkFrame(card, fg_color="transparent")
         toolbar.grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 6))
         toolbar.grid_columnconfigure(0, weight=1)
-
-        # Row 1: File Actions + Reorder + Subfolders
-        row1 = ctk.CTkFrame(toolbar, fg_color="transparent")
-        row1.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        self._toolbar = toolbar
 
         ctk.CTkLabel(
-            row1, text="📁 Hàng Đợi",
+            toolbar, text="📁 Hàng Đợi",
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
             text_color=THEME_COLORS["text"],
-        ).pack(side="left", padx=(0, 6))
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
 
+        flow = ctk.CTkFrame(toolbar, fg_color="transparent")
+        flow.grid(row=1, column=0, sticky="ew")
+        self._toolbar_flow = flow
+
+        self._toolbar_row1_btns = []
+        self._toolbar_row2_btns = []
+        self._toolbar_buttons = []  # thứ tự đọc ổn định cho reflow
         for text, cmd, fg, hv, txt_col in [
             ("➕ Thêm File", self.add_files, THEME_COLORS["primary"], THEME_COLORS["primary_hover"], "#FFFFFF"),
             ("📁 Thư Mục", self.add_folder, THEME_COLORS["primary"], THEME_COLORS["primary_hover"], "#FFFFFF"),
             ("✏️ Sửa Bản", self._edit_selected_copies, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
             ("▲", self.move_selected_up, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
             ("▼", self.move_selected_down, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
-        ]:
-            ctk.CTkButton(
-                row1, text=text, command=cmd,
-                height=28,
-                fg_color=fg, hover_color=hv,
-                text_color=txt_col,
-                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-                corner_radius=6,
-            ).pack(side="left", padx=2)
-
-        ctk.CTkCheckBox(
-            row1, text="Quét thư mục con",
-            variable=self._include_subfolders,
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=THEME_COLORS["text"],
-            checkbox_width=16, checkbox_height=16,
-            corner_radius=4,
-        ).pack(side="right", padx=(4, 0))
-
-        # Row 2: Batch & Queue Management Actions
-        row2 = ctk.CTkFrame(toolbar, fg_color="transparent")
-        row2.grid(row=1, column=0, sticky="ew", pady=(2, 0))
-
-        for text, cmd, fg, hv, txt_col in [
             ("💾 Lưu DS", self.save_queue_session, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
             ("📂 Mở DS", self.load_queue_session, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
             ("🗑️ Xóa Chọn", self.remove_selected, THEME_COLORS["btn_secondary"], THEME_COLORS["btn_secondary_hover"], THEME_COLORS["btn_secondary_text"]),
             ("🧹 Xóa Hết", self.remove_all, THEME_COLORS["danger"], THEME_COLORS["danger_hover"], "#FFFFFF"),
         ]:
-            ctk.CTkButton(
-                row2, text=text, command=cmd,
-                height=26,
+            b = ctk.CTkButton(
+                flow, text=text, command=cmd,
+                height=28,
                 fg_color=fg, hover_color=hv,
                 text_color=txt_col,
-                font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+                text_color_disabled=txt_col,
+                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
                 corner_radius=6,
-            ).pack(side="left", padx=2)
+            )
+            self._toolbar_buttons.append(b)
+        self._toolbar_row1_btns = list(self._toolbar_buttons[:5])
+        self._toolbar_row2_btns = list(self._toolbar_buttons[5:])
+
+        self._subfolder_check = ctk.CTkCheckBox(
+            flow, text="Quét thư mục con",
+            variable=self._include_subfolders,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=THEME_COLORS["text"],
+            checkbox_width=16, checkbox_height=16,
+            corner_radius=4,
+        )
+
+        self._reflow_job = None
+        self._reflowing = False
+        toolbar.bind("<Configure>", self._on_toolbar_resize)
+        self._reflow_toolbar()
 
         # ── Modern Treeview Table ────────────────────────────────────
         table_container = tk.Frame(card, bg="#FFFFFF", bd=0, highlightthickness=0)
@@ -796,6 +810,13 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
 
+        # Horizontal scrollbar: bảng tự cuộn ngang khi cửa sổ hẹp,
+        # không bao giờ ép vỡ layout hay tạo scrollbar ngang toàn app.
+        hsb = ttk.Scrollbar(table_container, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(xscrollcommand=hsb.set)
+        hsb.grid(row=1, column=0, sticky="ew")
+        self._tree_hsb = hsb
+
         # Bind container configure event for dynamic filename column auto-stretching
         table_container.bind("<Configure>", self._on_table_resize)
 
@@ -810,6 +831,10 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.tree.bind("<Alt-Up>", lambda e: self.move_selected_up())
         self.tree.bind("<Alt-Down>", lambda e: self.move_selected_down())
         self.tree.bind("<Key>", self._on_tree_keypress)
+        self.tree.bind("<Motion>", self._on_tree_hover)
+        self.tree.bind("<Leave>", lambda e: self._hide_tree_tooltip())
+        self._tree_tip = None
+        self._tree_tip_job = None
 
         self._update_treeview_theme()
 
@@ -830,6 +855,82 @@ class PDFBatchPrinterApp(ctk.CTk):
         )
         self.queue_summary_lbl.pack(side="left", padx=12, pady=4)
 
+    def _on_toolbar_resize(self, _event=None):
+        """Debounce toolbar reflow on width change (skip if width unchanged)."""
+        try:
+            w = self._toolbar.winfo_width()
+            if w == getattr(self, "_toolbar_last_w", None):
+                return
+            self._toolbar_last_w = w
+            if self._reflow_job is not None:
+                self.after_cancel(self._reflow_job)
+        except Exception:
+            pass
+        try:
+            self._reflow_job = self.after(120, self._reflow_toolbar)
+        except Exception:
+            pass
+
+    def _reflow_toolbar(self):
+        """Xếp 9 nút + checkbox vào các dòng grid vừa khung (tham lam theo
+        chiều rộng thực). Không nút nào bị cắt/chồng; thứ tự đọc giữ nguyên.
+        """
+        self._reflow_job = None
+        if getattr(self, "_reflowing", False):
+            return
+        if not getattr(self, "_is_alive", False):
+            return
+        self._reflowing = True
+        try:
+            flow = self._toolbar_flow
+            try:
+                avail = max(220, flow.winfo_width() or 0)
+            except Exception:
+                return
+            if avail <= 0:
+                return
+
+            def _w(w):
+                try:
+                    return w.winfo_reqwidth() + 5
+                except Exception:
+                    return 80
+
+            rows: list[list] = []
+            cur: list = []
+            curw = 0
+            for b in self._toolbar_buttons:
+                bw = _w(b)
+                if cur and curw + bw > avail:
+                    rows.append(cur)
+                    cur, curw = [], 0
+                cur.append(b)
+                curw += bw
+            if cur:
+                rows.append(cur)
+
+            for b in self._toolbar_buttons:
+                try:
+                    b.grid_forget()
+                except Exception:
+                    pass
+            try:
+                self._subfolder_check.grid_forget()
+            except Exception:
+                pass
+            for r, rowbtns in enumerate(rows):
+                for c, b in enumerate(rowbtns):
+                    b.grid(row=r, column=c, padx=2, pady=2, sticky="w")
+            # Checkbox luôn cuối dòng cuối, dính phải
+            flow.grid_columnconfigure(len(rows[-1]) if rows else 0, weight=1)
+            self._subfolder_check.grid(row=len(rows) - 1, column=len(rows[-1]),
+                                       padx=(8, 0), pady=2, sticky="e")
+            # Cập nhật membership để test/inspect biết nút đang dòng nào
+            self._toolbar_row1_btns = list(rows[0]) if rows else []
+            self._toolbar_row2_btns = [b for r in rows[1:] for b in r]
+        finally:
+            self._reflowing = False
+
     def _on_table_resize(self, event):
         """Dynamically expand the filename column to 100% of available space without clipping."""
         try:
@@ -840,6 +941,58 @@ class PDFBatchPrinterApp(ctk.CTk):
             self.tree.column("filename", width=rem_w)
         except Exception:
             pass
+
+    def _on_tree_hover(self, event):
+        """Show full filename tooltip when hovering a truncated filename cell."""
+        try:
+            if self._tree_tip_job is not None:
+                self.after_cancel(self._tree_tip_job)
+                self._tree_tip_job = None
+        except Exception:
+            pass
+        self._hide_tree_tooltip()
+
+        def _show():
+            try:
+                if self.tree.identify("region", event.x, event.y) != "cell":
+                    return
+                if self.tree.identify_column(event.x) != "#2":  # filename column
+                    return
+                item = self.tree.identify_row(event.y)
+                if not item:
+                    return
+                idx = int(self.tree.item(item, "values")[0]) - 1
+                if not (0 <= idx < len(self.file_list)):
+                    return
+                full = self.file_list[idx].filename
+                # Chỉ hiện khi text thực sự bị cắt (đo rộng hơn cột)
+                from tkinter import font as tkfont
+                w = tkfont.Font(family="Segoe UI", size=10).measure(full)
+                if w <= self.tree.column("filename", option="width") - 6:
+                    return
+                tip = tk.Toplevel(self)
+                tip.wm_overrideredirect(True)
+                tip.wm_geometry(f"+{event.x_root + 14}+{event.y_root + 12}")
+                lbl = tk.Label(tip, text=full, bg="#0F172A", fg="#F8FAFC",
+                               font=("Segoe UI", 10), padx=8, pady=4,
+                               wraplength=420, justify="left")
+                lbl.pack()
+                self._tree_tip = tip
+            except Exception:
+                pass
+
+        try:
+            self._tree_tip_job = self.after(450, _show)
+        except Exception:
+            pass
+
+    def _hide_tree_tooltip(self):
+        try:
+            if self._tree_tip is not None:
+                self._tree_tip.destroy()
+        except Exception:
+            pass
+        self._tree_tip = None
 
     def _select_all_rows(self, _e=None):
         self.tree.selection_set(self.tree.get_children())

@@ -989,6 +989,109 @@ class TestPerFilePages(unittest.TestCase):
                          [("custom", "1,3,5", 3), ("odd", "", 5), ("all", "", 1)])
 
 
+# ================= RESPONSIVE =================
+class TestResponsive(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Mock printer COM + update network: tranh crash fatal 0x80040155
+        # tu background threads khi chay headless/CI.
+        cls._p1 = mock.patch("app.gui.PrinterManager.get_printers", return_value=[])
+        cls._p2 = mock.patch("app.gui.PrinterManager.get_default_printer", return_value="")
+        cls._p3 = mock.patch("app.gui.PrinterManager.get_printer_status", return_value=("", False))
+        cls._p4 = mock.patch("app.gui.PrinterManager.supports_duplex", return_value=False)
+        cls._p5 = mock.patch("app.gui.app_updater.check_for_updates",
+                             return_value={"has_update": False, "current": "x", "latest": "x"})
+        for p in (cls._p1, cls._p2, cls._p3, cls._p4, cls._p5):
+            p.start()
+        from app.gui import PDFBatchPrinterApp
+        cls.app = PDFBatchPrinterApp()
+        cls.app.deiconify()  # deterministic: mapped-assertions cần window hiện
+        cls.app.update()
+        cls.app.update_idletasks()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.app._is_alive = False
+            cls.app.destroy()
+        except Exception:
+            pass
+        for p in (cls._p1, cls._p2, cls._p3, cls._p4, cls._p5):
+            p.stop()
+
+    def _key_widgets_mapped(self):
+        a = self.app
+        for w in [a.btn_start, a.btn_pause, a.btn_cancel,
+                  a.btn_print_selected, a.btn_retry_failed, a.tree]:
+            self.assertTrue(w.winfo_ismapped(), f"{w} bi mat khi resize")
+
+    def test_sizes_no_break(self):
+        a = self.app
+        for size in ["1920x1080", "1600x900", "1365x839", "1280x720",
+                     "1024x768", "900x700", "860x560"]:
+            with self.subTest(size=size):
+                a.geometry(size)
+                a.update()
+                a.update_idletasks()
+                rw = a._right_col.winfo_width()
+                self.assertGreaterEqual(rw, 300, f"cot phai hep qua: {rw}")
+                self.assertLessEqual(rw, 420, f"cot phai phinh: {rw}")
+                self.assertGreater(a._left_col.winfo_width(), 150)
+                self._key_widgets_mapped()
+                self.assertTrue(a._tree_hsb.winfo_ismapped())
+
+    def test_drag_shrink_stepwise(self):
+        a = self.app
+        for w in [1365, 1200, 1100, 1000, 900, 860]:
+            with self.subTest(width=w):
+                a.geometry(f"{w}x800")
+                a.update()
+                a.update_idletasks()
+                a._reflow_toolbar()
+                a.update_idletasks()
+                self._key_widgets_mapped()
+        # tong 9 nut toolbar van con du
+        total = len(a._toolbar_row1_btns) + len(a._toolbar_row2_btns)
+        self.assertEqual(total, 9)
+        for b in a._toolbar_row1_btns + a._toolbar_row2_btns:
+            self.assertTrue(b.winfo_ismapped())
+        # mo rong lai: nut tro ve
+        a.geometry("1365x839")
+        a.update()
+        a._reflow_toolbar()
+        a.update()
+        self.assertGreaterEqual(len(a._toolbar_row1_btns), 3)
+
+    def test_header_collapse_restore(self):
+        a = self.app
+        a.geometry("900x800")  # <960 → badge ẩn
+        a.update()
+        a.update_idletasks()
+        a._on_header_resize(type("E", (), {"width": a.header.winfo_width()})())
+        a.update()
+        # badge phải ẩn khi header hẹp (guard chống loop cho gọi lặp)
+        a._on_header_resize(type("E", (), {"width": 800})())
+        a._on_header_resize(type("E", (), {"width": 800})())
+        a.update()
+        self.assertFalse(a.type_badge.winfo_ismapped())
+        a.geometry("1365x839")
+        a.update()
+        a._on_header_resize(type("E", (), {"width": 1200})())
+        a.update()
+        self.assertTrue(a.type_badge.winfo_ismapped())
+
+    def test_filename_column_elastic(self):
+        a = self.app
+        a.geometry("1365x839")
+        a.update()
+        wide = a.tree.column("filename", option="width")
+        a.geometry("860x600")
+        a.update()
+        narrow = a.tree.column("filename", option="width")
+        self.assertGreaterEqual(narrow, 100)
+        self.assertLessEqual(narrow, wide)
+
+
 # ================= GUI PURE LOGIC (khong can Tk) =================
 class TestGUILogicHeadless(unittest.TestCase):
     def test_duplicate_filter_logic(self):
