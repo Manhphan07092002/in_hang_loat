@@ -175,8 +175,27 @@ class PrinterManager:
             win32print.ClosePrinter(handle)
 
         if devmode is not None:
-            paper_const = PAPER_SIZES.get(paper_size_name, win32con.DMPAPER_A4)
-            devmode.PaperSize = paper_const
+            from app.settings import resolve_paper
+            kind, pval = resolve_paper(paper_size_name)
+            fields = (
+                win32con.DM_ORIENTATION
+                | win32con.DM_DUPLEX
+                | win32con.DM_COPIES
+            )
+            if kind == "standard":
+                devmode.PaperSize = pval
+                fields |= win32con.DM_PAPERSIZE
+            else:
+                # Khổ tùy chỉnh: DMPAPER_USER + kích thước đơn vị 1/10 mm
+                w_mm, h_mm = pval
+                devmode.PaperSize = win32con.DMPAPER_USER
+                try:
+                    devmode.PaperWidth = int(round(w_mm * 10))
+                    devmode.PaperLength = int(round(h_mm * 10))
+                    fields |= (win32con.DM_PAPERSIZE | win32con.DM_PAPERWIDTH | win32con.DM_PAPERLENGTH)
+                except Exception:
+                    devmode.PaperSize = win32con.DMPAPER_A4
+                    fields |= win32con.DM_PAPERSIZE
             devmode.Orientation = orientation_value
             devmode.Duplex = duplex_value
             # NOTE: nhiều driver bỏ qua DM_COPIES nên luôn để Copies=1
@@ -185,12 +204,7 @@ class PrinterManager:
                 devmode.Copies = 1
             except Exception:
                 pass
-            devmode.Fields |= (
-                win32con.DM_PAPERSIZE
-                | win32con.DM_ORIENTATION
-                | win32con.DM_DUPLEX
-                | win32con.DM_COPIES
-            )
+            devmode.Fields |= fields
             hdc = win32gui.CreateDC("WINSPOOL", printer_name, devmode)
         else:
             hdc = win32gui.CreateDC("WINSPOOL", printer_name, None)

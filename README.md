@@ -1,4 +1,4 @@
-# 🖨️ PDF Batch Printer Pro — v1.0.0.1
+# 🖨️ PDF Batch Printer Pro — v1.0.0.2
 
 Phần mềm Windows chuyên nghiệp để **in ấn hàng loạt tệp tài liệu đa định dạng (PDF, Word, Excel, PowerPoint, Ảnh)** với giao diện hiện đại, tối ưu tốc độ và an toàn quy trình.
 
@@ -203,5 +203,6 @@ pdf-batch-printer/
 
 ## 📝 Lịch Sử Version
 
+- **v1.0.0.2** — Version một nguồn (`settings.py`, tự sinh `version_info.txt` + `installer.iss` khi build), log file xoay vòng (`%APPDATA%/logs/app.log`), khổ giấy tùy chỉnh R×C mm (DMPAPER_USER), `requirements-dev.txt`, gỡ `config.json` khỏi git, thống nhất số liệu thống kê, theme repaint full.
 - **v1.0.0.1** — Nhúng version EXE, config `%APPDATA%` + migration, khổ A3, tái dùng Office COM (timeout 180s), tách `config_store`/`queue_store`, hỗ trợ `.webp`, in nền không treo UI, bộ test 60 case.
 - **v1.0.0** — Bản đầu tiên: GUI + CLI, in đa định dạng, preview, failover, setup wizard.

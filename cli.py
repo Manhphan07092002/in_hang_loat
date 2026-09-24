@@ -245,10 +245,23 @@ def run_interactive():
     duplex_val = duplex_map.get(dup_choice, win32con.DMDUP_SIMPLEX)
 
     # Paper Size
-    print("👉 Khổ giấy: [1] A3  [2] A4  [3] A5  [4] Letter  [5] Legal")
-    paper_choice = input("   Lựa chọn [1/2/3/4/5] (mặc định A4): ").strip()
+    print("👉 Khổ giấy: [1] A3  [2] A4  [3] A5  [4] Letter  [5] Legal  [6] Tùy chỉnh (RộngxCao mm)")
+    paper_choice = input("   Lựa chọn [1-6] (mặc định A4, hoặc nhập trực tiếp vd 210x297): ").strip()
     paper_map = {"1": "A3", "2": "A4", "3": "A5", "4": "Letter", "5": "Legal"}
-    paper_size = paper_map.get(paper_choice, "A4")
+    if paper_choice in paper_map:
+        paper_size = paper_map[paper_choice]
+    elif not paper_choice:
+        paper_size = "A4"
+    elif paper_choice == "6":
+        paper_size = input("   Nhập RộngxCao (mm), ví dụ 210x297: ").strip()
+    else:
+        paper_size = paper_choice  # cho phép nhập trực tiếp "210x297"
+    from app.settings import resolve_paper as _resolve_paper
+    try:
+        _resolve_paper(paper_size)
+    except ValueError as exc:
+        print(f"❌ Khổ giấy không hợp lệ: {exc}")
+        return
 
     # Orientation
     print("👉 Chiều in: [1] Tự động  [2] Dọc (Portrait)  [3] Ngang (Landscape)")
@@ -369,7 +382,13 @@ def run_cli_args(args):
 
     # Orientation
     orient_mode = args.orient.capitalize() if args.orient else "Tự động"
-    paper_size = args.paper.upper() if args.paper else "A4"
+    from app.settings import resolve_paper as _resolve_paper2
+    paper_size = args.paper.upper() if args.paper and "x" not in args.paper.lower() else (args.paper or "A4")
+    try:
+        _resolve_paper2(paper_size)
+    except ValueError as exc:
+        print(f"❌ Khổ giấy không hợp lệ (--paper): {exc}")
+        return
 
     # Load files
     print_banner()
@@ -467,8 +486,8 @@ def main():
         default="1", help="In 2 mặt: '1' (1 mặt), 'long' (lật như sách), 'short' (lật như lịch)",
     )
     parser.add_argument(
-        "--paper", choices=["A3", "A4", "A5", "Letter", "Legal"], default="A4",
-        help="Khổ giấy in (mặc định: A4)",
+        "--paper", default="A4",
+        help="Khổ giấy: A3/A4/A5/Letter/Legal hoặc tùy chỉnh WxH (vd 210x297, mm)",
     )
     parser.add_argument(
         "--orient", choices=["auto", "portrait", "landscape"], default="auto",

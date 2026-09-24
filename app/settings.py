@@ -6,7 +6,7 @@ import win32con
 
 # ── Application ──────────────────────────────────────────────────────────────
 APP_NAME = "PDF Batch Printer Pro"
-APP_VERSION = "1.0.0.1"
+APP_VERSION = "1.0.0.2"  # NGUỒN DUY NHẤT — build script tự sinh version_info.txt & installer.iss từ đây
 WINDOW_TITLE = "PDF Batch Printer Pro — In Hàng Loạt Chuyên Nghiệp"
 DEFAULT_SIZE = (1300, 780)
 MIN_SIZE = (860, 560)
@@ -114,6 +114,33 @@ ORIENT_AUTO = "Tự động"
 ORIENT_PORTRAIT = "Dọc"
 ORIENT_LANDSCAPE = "Ngang"
 ORIENTATION_OPTIONS = [ORIENT_AUTO, ORIENT_PORTRAIT, ORIENT_LANDSCAPE]
+
+# ── Custom paper size ────────────────────────────────────────────────────
+# Người dùng nhập "Rộng x Cao (mm)", vd "210x297". printer_manager chuyển
+# thành DMPAPER_USER + PaperWidth/PaperLength (đơn vị 1/10 mm).
+CUSTOM_PAPER_LABEL = "Tùy chỉnh (R×C mm)..."
+
+import re as _re
+_CUSTOM_PAPER_RE = _re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm)?\s*$", _re.IGNORECASE)
+
+
+def parse_custom_paper(text: str) -> tuple[float, float]:
+    """Parse '210x297' → (210.0, 297.0) mm. Raise ValueError nếu sai/không hợp lệ."""
+    m = _CUSTOM_PAPER_RE.match(text or "")
+    if not m:
+        raise ValueError("Khổ giấy tùy chỉnh phải dạng RộngxCao, ví dụ 210x297 (mm).")
+    w, h = float(m.group(1)), float(m.group(2))
+    if not (50 <= w <= 1500 and 50 <= h <= 1500):
+        raise ValueError("Rộng/Cao phải từ 50 đến 1500 mm.")
+    return w, h
+
+
+def resolve_paper(paper: str) -> tuple[str, object]:
+    """Trả về ('standard', DMPAPER_*) hoặc ('custom', (w_mm, h_mm))."""
+    if paper in PAPER_SIZES:
+        return "standard", PAPER_SIZES[paper]
+    return "custom", parse_custom_paper(paper)
+
 
 # ── Binding Margin Options (mm) ──────────────────────────────────────────────
 BINDING_MARGIN_OPTIONS = {

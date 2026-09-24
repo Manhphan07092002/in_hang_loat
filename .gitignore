@@ -3,5 +3,8 @@ __pycache__/
 build/
 .pytest_cache/
 *.egg-info/
+# May local cua tung may (ten may in...), khong public
+config.json
+dist/config.json
 # File cai dat exe dung Git LFS (theo doi trong .gitattributes)
 !dist/*.exe

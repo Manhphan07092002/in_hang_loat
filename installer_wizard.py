@@ -23,7 +23,10 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 
 APP_NAME = "PDF Batch Printer Pro"
-APP_VERSION = "1.0.0.1"
+try:
+    from app.settings import APP_VERSION  # nguồn duy nhất
+except Exception:
+    APP_VERSION = "1.0.0.2"
 PUBLISHER = "PDF Batch Printer Pro Team"
 
 ctk.set_appearance_mode("Light")

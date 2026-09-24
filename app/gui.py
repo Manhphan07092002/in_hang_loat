@@ -33,12 +33,13 @@ import win32con
 
 from app.settings import (
     APP_NAME, WINDOW_TITLE, DEFAULT_SIZE, MIN_SIZE,
-    PAPER_SIZES, DUPLEX_MODES, ORIENTATIONS, THEME_COLORS,
+    PAPER_SIZES, CUSTOM_PAPER_LABEL, DUPLEX_MODES, ORIENTATIONS, THEME_COLORS,
     PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM, PAGE_RANGE_OPTIONS,
     ORIENT_AUTO, ORIENT_PORTRAIT, ORIENT_LANDSCAPE, ORIENTATION_OPTIONS,
     BINDING_MARGIN_OPTIONS,
     SUPPORTED_EXTENSIONS, FILE_DIALOG_TYPES,
     FileStatus, STATUS_ICONS, STATUS_COLORS,
+    parse_custom_paper, resolve_paper,
 )
 from app.utils import parse_page_range, format_file_size, get_timestamp
 from app.pdf_manager import PDFManager, FileInfo
@@ -48,6 +49,7 @@ from app.preview import PreviewWindow
 from app.file_converter import cleanup_temp
 from app.config_store import CONFIG_FILE, get_app_data_dir, load_config, save_config
 from app.queue_store import apply_move, dedupe_paths, is_edit_locked, queue_summary, retry_indices
+from app.app_logger import log_info, log_error, get_log_dir
 from PIL import Image, ImageTk
 import sys
 
@@ -100,7 +102,13 @@ class PDFBatchPrinterApp(ctk.CTk):
         self._selected_filename_var = tk.StringVar(value="(Chưa chọn tệp)")
         self._page_range_var = tk.StringVar(value=self._cfg.get("page_range", PAGE_RANGE_ALL))
         self._custom_pages_var = tk.StringVar(value="")
-        self._paper_var = tk.StringVar(value=self._cfg.get("paper", "A4") if self._cfg.get("paper", "A4") in PAPER_SIZES else "A4")
+        _saved_paper = self._cfg.get("paper", "A4")
+        try:
+            resolve_paper(_saved_paper)
+            _paper_init = _saved_paper
+        except Exception:
+            _paper_init = "A4"
+        self._paper_var = tk.StringVar(value=_paper_init)
         self._orient_var = tk.StringVar(value=self._cfg.get("orientation", ORIENT_AUTO))
         self._duplex_var = tk.StringVar(value=self._cfg.get("duplex", "1 mặt"))
         self._saved_printer = self._cfg.get("printer", "")
@@ -202,7 +210,9 @@ class PDFBatchPrinterApp(ctk.CTk):
             cfg = {
                 "printer": printer_name,
                 "duplex": self._duplex_var.get(),
-                "paper": self._paper_var.get(),
+                "paper": self._resolve_gui_paper(),
+                "custom_paper_w": self._custom_paper_w.get() if hasattr(self, "_custom_paper_w") else "210",
+                "custom_paper_h": self._custom_paper_h.get() if hasattr(self, "_custom_paper_h") else "297",
                 "orientation": self._orient_var.get(),
                 "copies": self._copies_var.get(),
                 "fit_to_page": self._fit_to_page.get(),
@@ -463,6 +473,13 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         self.configure(fg_color=THEME_COLORS["bg"])
         self._update_treeview_theme()
+        # Repaint các vùng dùng màu cứng theo theme
+        try:
+            is_dark = ctk.get_appearance_mode() == "Dark"
+            if hasattr(self, "_table_container"):
+                self._table_container.configure(bg="#1E293B" if is_dark else "#FFFFFF")
+        except Exception:
+            pass
 
     # ═══════════════════════════════════════════════════════════════════
     #  MAIN 2-COLUMN DASHBOARD (RESPONSIVE)
@@ -573,6 +590,7 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         # ── Modern Treeview Table ────────────────────────────────────
         table_container = tk.Frame(card, bg="#FFFFFF", bd=0, highlightthickness=0)
+        self._table_container = table_container  # giữ ref để repaint khi đổi theme
         table_container.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 4))
         table_container.grid_rowconfigure(0, weight=1)
         table_container.grid_columnconfigure(0, weight=1)
@@ -917,24 +935,40 @@ class PDFBatchPrinterApp(ctk.CTk):
             text_color=THEME_COLORS["text"],
         ).grid(row=6, column=0, sticky="w", padx=(14, 8), pady=3)
 
-        paper_box = ctk.CTkFrame(card, fg_color="transparent")
-        paper_box.grid(row=6, column=1, sticky="ew", padx=(0, 14), pady=3)
-        paper_box.grid_columnconfigure(0, weight=1)
-        paper_box.grid_columnconfigure(1, weight=1)
+        self._paper_box = ctk.CTkFrame(card, fg_color="transparent")
+        self._paper_box.grid(row=6, column=1, sticky="ew", padx=(0, 14), pady=3)
+        self._paper_box.grid_columnconfigure(0, weight=1)
+        self._paper_box.grid_columnconfigure(1, weight=1)
 
         ctk.CTkComboBox(
-            paper_box, values=list(PAPER_SIZES.keys()), variable=self._paper_var,
+            self._paper_box, values=list(PAPER_SIZES.keys()) + [CUSTOM_PAPER_LABEL],
+            variable=self._paper_var,
             height=28, state="readonly",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
+            command=self._on_paper_change,
         ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
 
         ctk.CTkComboBox(
-            paper_box, values=ORIENTATION_OPTIONS, variable=self._orient_var,
+            self._paper_box, values=ORIENTATION_OPTIONS, variable=self._orient_var,
             height=28, state="readonly",
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+
+        # ── 5b. Khổ giấy tùy chỉnh (Rộng x Cao, mm) ───────────────────
+        self._custom_paper_w = tk.StringVar(value=self._cfg.get("custom_paper_w", "210"))
+        self._custom_paper_h = tk.StringVar(value=self._cfg.get("custom_paper_h", "297"))
+        self.custom_paper_frame = ctk.CTkFrame(card, fg_color="transparent")
+        self.custom_paper_frame.grid(row=6, column=1, sticky="ew", padx=(0, 14), pady=(0, 3))
+        self.custom_paper_frame.grid_columnconfigure((0, 2, 4), weight=1)
+        ctk.CTkLabel(self.custom_paper_frame, text="Rộng:", font=ctk.CTkFont(size=11)).grid(row=0, column=0)
+        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_w, width=56, height=26).grid(row=0, column=1, padx=2)
+        ctk.CTkLabel(self.custom_paper_frame, text="× Cao:", font=ctk.CTkFont(size=11)).grid(row=0, column=2)
+        ctk.CTkEntry(self.custom_paper_frame, textvariable=self._custom_paper_h, width=56, height=26).grid(row=0, column=3, padx=2)
+        ctk.CTkLabel(self.custom_paper_frame, text="mm", font=ctk.CTkFont(size=11)).grid(row=0, column=4)
+        for v in (self._custom_paper_w, self._custom_paper_h):
+            v.trace_add("write", lambda *_: self._on_custom_paper_typed())
 
         # ── 6. In 2 Mặt (Duplex) ─────────────────────────────────────
         ctk.CTkLabel(
@@ -1049,6 +1083,8 @@ class PDFBatchPrinterApp(ctk.CTk):
             text_color=THEME_COLORS["warning"][0],
         )
         self.duplex_warn_lbl.pack(side="right")
+
+        self._sync_paper_from_config()
 
     # ═══════════════════════════════════════════════════════════════════
     #  RIGHT COLUMN: PROGRESS & CONTROL ACTIONS
@@ -1358,14 +1394,9 @@ class PDFBatchPrinterApp(ctk.CTk):
         self._update_queue_summary()
 
     def _update_stats_pill(self):
-        total_files = len(self.file_list)
-        total_pages = 0
-        for f in self.file_list:
-            try:
-                total_pages += int(f.page_count)
-            except (ValueError, TypeError):
-                pass
-        self.stats_lbl.configure(text=f"📦 {total_files} tệp tin  •  📄 {total_pages} trang")
+        total_files, _copies, total_pages = queue_summary(self.file_list)
+        page_text = f"{total_pages} trang in" if total_pages is not None else "Đang tính..."
+        self.stats_lbl.configure(text=f"📦 {total_files} tệp tin  •  📄 {page_text}")
         self._update_queue_summary()
 
     def _update_queue_summary(self):
@@ -2263,6 +2294,57 @@ class PDFBatchPrinterApp(ctk.CTk):
                 self._custom_pages_visible = False
         self._save_config()
 
+    # ── Custom paper size ────────────────────────────────────────────
+
+    def _on_paper_change(self, _v=None):
+        is_custom = self._paper_var.get() == CUSTOM_PAPER_LABEL
+        try:
+            if is_custom:
+                self._paper_box.grid_remove()
+                self.custom_paper_frame.grid()
+            else:
+                self.custom_paper_frame.grid_remove()
+                self._paper_box.grid()
+        except Exception:
+            pass
+        self._save_config()
+
+    def _on_custom_paper_typed(self):
+        try:
+            w = self._custom_paper_w.get().strip()
+            h = self._custom_paper_h.get().strip()
+            parse_custom_paper(f"{w}x{h}")
+            self._save_config()
+        except Exception:
+            pass
+
+    def _resolve_gui_paper(self) -> str:
+        """Return standard key or 'WxH' string for the print pipeline."""
+        if self._paper_var.get() == CUSTOM_PAPER_LABEL:
+            try:
+                w = self._custom_paper_w.get().strip()
+                h = self._custom_paper_h.get().strip()
+                parse_custom_paper(f"{w}x{h}")
+                return f"{w}x{h}"
+            except Exception:
+                return "A4"
+        return self._paper_var.get()
+
+    def _sync_paper_from_config(self):
+        """Restore custom W×H into entries when config holds 'WxH'."""
+        saved = self._cfg.get("paper", "A4")
+        if saved in PAPER_SIZES or saved == CUSTOM_PAPER_LABEL:
+            self._paper_var.set(saved)
+        else:
+            try:
+                w, h = parse_custom_paper(saved)
+                self._custom_paper_w.set(str(int(w) if float(w).is_integer() else w))
+                self._custom_paper_h.set(str(int(h) if float(h).is_integer() else h))
+                self._paper_var.set(CUSTOM_PAPER_LABEL)
+            except Exception:
+                self._paper_var.set("A4")
+        self._on_paper_change()
+
     # ═══════════════════════════════════════════════════════════════════
     #  PRINTING WORKFLOW
     # ═══════════════════════════════════════════════════════════════════
@@ -2293,7 +2375,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         orient_name = self._orient_var.get()
         duplex_name = self._duplex_var.get()
         duplex_val = DUPLEX_MODES.get(duplex_name, win32con.DMDUP_SIMPLEX)
-        paper = self._paper_var.get()
+        paper = self._resolve_gui_paper()
         fit = self._fit_to_page.get()
         binding_margin_mm = float(BINDING_MARGIN_OPTIONS.get(self._binding_margin_var.get(), 0))
         reverse_order = self._reverse_order_var.get()
@@ -2681,6 +2763,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             pass
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
+        log_info(message)  # mirror sang file %APPDATA%/logs/app.log
 
     def save_log(self):
         path = filedialog.asksaveasfilename(

@@ -634,6 +634,95 @@ class TestPaperA3(unittest.TestCase):
         self.assertIn("A3", PAPER_SIZES)
 
 
+# ================= VERSION SINGLE SOURCE =================
+class TestVersionSync(unittest.TestCase):
+    def test_settings_is_canonical(self):
+        from app.settings import APP_VERSION
+        import installer_wizard
+        self.assertEqual(installer_wizard.APP_VERSION, APP_VERSION)
+        self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+\.\d+$")
+
+    def test_iss_matches(self):
+        from app.settings import APP_VERSION
+        iss = os.path.join(os.path.dirname(os.path.abspath(__file__)), "installer.iss")
+        with open(iss, encoding="utf-8") as f:
+            self.assertIn(f'#define MyAppVersion "{APP_VERSION}"', f.read())
+
+    def test_build_generates_version_file(self):
+        import build_exe
+        vf = build_exe.write_version_file("9.9.9.9")
+        try:
+            with open(vf, encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("9.9.9.9", content)
+        finally:
+            build_exe.write_version_file(__import__("app.settings", fromlist=["APP_VERSION"]).APP_VERSION)
+
+
+# ================= CUSTOM PAPER =================
+class TestCustomPaper(unittest.TestCase):
+    def test_parse_valid(self):
+        from app.settings import parse_custom_paper
+        self.assertEqual(parse_custom_paper("210x297"), (210.0, 297.0))
+        self.assertEqual(parse_custom_paper("210X297mm"), (210.0, 297.0))
+        self.assertEqual(parse_custom_paper(" 85 x 110 "), (85.0, 110.0))
+
+    def test_parse_invalid(self):
+        from app.settings import parse_custom_paper
+        for bad in ["", "A4", "abc", "10x5", "0x100", "210x", "x297", "2000x2000"]:
+            with self.assertRaises(ValueError, msg=bad):
+                parse_custom_paper(bad)
+
+    def test_resolve(self):
+        from app.settings import resolve_paper
+        import win32con
+        kind, val = resolve_paper("A4")
+        self.assertEqual((kind, val), ("standard", win32con.DMPAPER_A4))
+        kind2, val2 = resolve_paper("210x297")
+        self.assertEqual(kind2, "custom")
+        self.assertEqual(val2, (210.0, 297.0))
+
+    def test_printer_custom_devmode(self):
+        import threading
+        import win32con
+        tmp = tempfile.mkdtemp()
+        try:
+            pdf = make_pdf(os.path.join(tmp, "c.pdf"), 1)
+            devmode = mock.MagicMock()
+            devmode.Fields = 0
+            with mock.patch("app.printer_manager.win32print.OpenPrinter", return_value="h"), \
+                 mock.patch("app.printer_manager.win32print.GetPrinter", return_value={"pDevMode": devmode}), \
+                 mock.patch("app.printer_manager.win32print.ClosePrinter"), \
+                 mock.patch("app.printer_manager.win32gui.CreateDC", return_value="hdc"), \
+                 mock.patch("app.printer_manager.win32ui.CreateDCFromHandle") as CDC, \
+                 mock.patch("app.printer_manager.ImageWin.Dib"), \
+                 mock.patch("app.printer_manager.win32gui.DeleteDC"):
+                CDC.return_value.GetDeviceCaps.return_value = 500
+                PrinterManager.print_pdf("P", pdf, [0], 1, "210x297",
+                                         win32con.DMORIENT_PORTRAIT,
+                                         win32con.DMDUP_SIMPLEX, True, threading.Event())
+            self.assertEqual(devmode.PaperSize, win32con.DMPAPER_USER)
+            self.assertEqual(devmode.PaperWidth, 2100)
+            self.assertEqual(devmode.PaperLength, 2970)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ================= FILE LOGGER =================
+class TestFileLogger(unittest.TestCase):
+    def test_writes_rotating_file(self):
+        import app.app_logger as al
+        with mock.patch.object(al, "get_log_dir", return_value=tempfile.mkdtemp()):
+            al.get_logger().handlers.clear()
+            al._handler_added = False
+            al.log_info("dong test 1.0.0.2")
+            al.get_logger().handlers[0].flush()
+            with open(os.path.join(al.get_log_dir(), "app.log"), encoding="utf-8") as f:
+                self.assertIn("dong test 1.0.0.2", f.read())
+            al.get_logger().handlers.clear()
+            al._handler_added = False
+
+
 # ================= PREVIEW =================
 class TestPreviewLogic(unittest.TestCase):
     def test_get_paper_name_all(self):
