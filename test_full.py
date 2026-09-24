@@ -909,6 +909,86 @@ class TestCLI(unittest.TestCase):
             cli.run_cli_args(args)  # khong raise
 
 
+# ================= PER-FILE PAGES =================
+class TestPerFilePages(unittest.TestCase):
+    def test_resolve_modes(self):
+        from app.utils import resolve_page_selection
+        self.assertEqual(resolve_page_selection("all", "", 5), [0, 1, 2, 3, 4])
+        self.assertEqual(resolve_page_selection("odd", "", 6), [0, 2, 4])
+        self.assertEqual(resolve_page_selection("even", "", 6), [1, 3, 5])
+        self.assertEqual(resolve_page_selection("custom", "1,3,5", 6), [0, 2, 4])
+        self.assertEqual(resolve_page_selection("custom", "1-3,5", 6), [0, 1, 2, 4])
+        with self.assertRaises(ValueError):
+            resolve_page_selection("custom", "1,99", 6)
+        with self.assertRaises(ValueError):
+            resolve_page_selection("custom", "abc", 6)
+        with self.assertRaises(ValueError):
+            resolve_page_selection("custom", "", 6)
+        with self.assertRaises(ValueError):
+            resolve_page_selection("weird", "", 6)
+
+    def test_describe(self):
+        from app.utils import describe_pages
+        self.assertEqual(describe_pages("all", ""), "Tất cả")
+        self.assertEqual(describe_pages("odd", ""), "Lẻ")
+        self.assertEqual(describe_pages("even", ""), "Chẵn")
+        self.assertEqual(describe_pages("custom", "1,3,5"), "1,3,5")
+
+    def test_fileinfo_defaults_and_resolve(self):
+        from app.pdf_manager import FileInfo
+        f = FileInfo(original_path="a.pdf", page_count=10)
+        self.assertEqual(f.page_mode, "all")
+        self.assertEqual(f.page_range_text, "")
+        self.assertEqual(f.pages_display(), "Tất cả")
+        self.assertEqual(f.resolve_pages(), list(range(10)))
+        f.page_mode = "custom"
+        f.page_range_text = "2,4,6"
+        self.assertEqual(f.resolve_pages(), [1, 3, 5])
+        self.assertEqual(f.pages_display(), "2,4,6")
+
+    def test_files_independent(self):
+        from app.pdf_manager import FileInfo
+        f1 = FileInfo(original_path="a.pdf", page_count=31)
+        f1.page_mode, f1.page_range_text = "custom", "1,3,5"
+        f1.copies = 3
+        f2 = FileInfo(original_path="b.pdf", page_count=20)
+        f2.page_mode, f2.page_range_text = "custom", "2,4,6"
+        f2.copies = 2
+        f3 = FileInfo(original_path="c.pdf", page_count=15)
+        f3.page_mode, f3.page_range_text = "custom", "1,2,4"
+        self.assertEqual(f1.resolve_pages(), [0, 2, 4])
+        self.assertEqual(f2.resolve_pages(), [1, 3, 5])
+        self.assertEqual(f3.resolve_pages(), [0, 1, 3])
+        # doi f2 khong anh huong f1/f3
+        f2.page_mode, f2.page_range_text = "odd", ""
+        self.assertEqual(f1.resolve_pages(), [0, 2, 4])
+        self.assertEqual(f3.resolve_pages(), [0, 1, 3])
+
+    def test_session_roundtrip(self):
+        import json
+        from app.pdf_manager import FileInfo
+        files = []
+        for name, mode, val, copies in [("a.pdf", "custom", "1,3,5", 3),
+                                        ("b.pdf", "odd", "", 5),
+                                        ("c.pdf", "all", "", 1)]:
+            f = FileInfo(original_path=name, page_count=10)
+            f.page_mode, f.page_range_text, f.copies = mode, val, copies
+            files.append(f)
+        data = [{"source_path": f.original_path, "copies": f.copies,
+                 "pages": {"mode": f.page_mode, "value": f.page_range_text}} for f in files]
+        blob = json.dumps({"version": "2.0", "files": data})
+        restored = json.loads(blob)["files"]
+        out = []
+        for it in restored:
+            f = FileInfo(original_path=it["source_path"], page_count=10)
+            f.copies = it["copies"]
+            f.page_mode = it["pages"]["mode"]
+            f.page_range_text = it["pages"]["value"]
+            out.append(f)
+        self.assertEqual([(f.page_mode, f.page_range_text, f.copies) for f in out],
+                         [("custom", "1,3,5", 3), ("odd", "", 5), ("all", "", 1)])
+
+
 # ================= GUI PURE LOGIC (khong can Tk) =================
 class TestGUILogicHeadless(unittest.TestCase):
     def test_duplicate_filter_logic(self):

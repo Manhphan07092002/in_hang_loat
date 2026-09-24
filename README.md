@@ -28,8 +28,13 @@ Phần mềm Windows chuyên nghiệp để **in ấn hàng loạt tệp tài li
 
 5. **Sắp Xếp & Quản Lý Hàng Đợi**:
    - Di chuyển file lên/xuống (`▲`, `▼`, `Ctrl+Up/Down`).
-   - Click tiêu đề cột để sắp xếp (Tên, Số trang, Định dạng, Kích thước, Số bản...).
-   - Lưu / mở phiên hàng đợi (`.json`) bằng `💾 Lưu DS`, `📂 Mở DS`.
+   - Click tiêu đề cột để sắp xếp (Tên, Số trang, **Trang in**, Định dạng, Kích thước, Số bản...).
+   - Lưu / mở phiên hàng đợi (`.json`) bằng `💾 Lưu DS`, `📂 Mở DS` (giữ cả trang in riêng từng file).
+
+6. **Trang In Riêng Từng File**:
+   - Mỗi file có thiết lập trang riêng: Tất cả / Tùy chọn (`1,3,5-8,12`) / Lẻ / Chẵn — file mới mặc định Tất cả.
+   - Click file để xem/sửa ở panel phải, kiểm tra số trang hợp lệ theo từng file, nút `📋 Áp dụng cho tất cả` để đặt nhanh.
+   - Cột `Trang In` hiện ngay trong hàng đợi; lúc in mỗi file dùng đúng trang của mình × số bản riêng.
 
 6. **Tự Động Lưu Cài Đặt**:
    - Ghi nhớ máy in, in 2 mặt, khổ giấy (**A3**/A4/A5/Letter/Legal), giao diện Sáng/Tối...

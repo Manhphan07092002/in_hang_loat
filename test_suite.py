@@ -436,7 +436,7 @@ class TestGUIStateAndIntegration(unittest.TestCase):
         values = app.tree.item(items[0], "values")
         self.assertEqual(str(values[0]), "1")  # Index
         self.assertEqual(str(values[1]), "gui_sample.pdf")
-        self.assertEqual(int(values[5]), 2)  # Copies
+        self.assertEqual(int(values[6]), 2)  # Copies (sau cột Trang in)
 
         # 2. Select file and test copies stepper
         app.tree.selection_set(items[0])

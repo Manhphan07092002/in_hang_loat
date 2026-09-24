@@ -40,7 +40,7 @@ class FileInfo:
     __slots__ = (
         "original_path", "pdf_path", "filename", "file_type",
         "is_converted", "is_converted_ready", "page_count", "file_size",
-        "copies", "page_range_text", "status",
+        "copies", "page_range_text", "page_mode", "status",
     )
 
     def __init__(
@@ -52,6 +52,8 @@ class FileInfo:
         file_type: str = "PDF",
         is_converted: bool = False,
         is_converted_ready: bool = True,
+        page_mode: str = "all",
+        page_range_text: str = "",
     ):
         self.original_path = original_path
         self.pdf_path = pdf_path if pdf_path else original_path
@@ -62,8 +64,19 @@ class FileInfo:
         self.page_count = page_count
         self.file_size = file_size
         self.copies: int = 1
-        self.page_range_text: str = ""   # empty → all pages
+        self.page_mode: str = page_mode or "all"  # all | custom | odd | even
+        self.page_range_text: str = page_range_text  # custom value, e.g. "1,3,5"
         self.status: str = "Chờ in"
+
+    def resolve_pages(self) -> list[int]:
+        """0-based page indices for this file (validates custom ranges)."""
+        from app.utils import resolve_page_selection
+        return resolve_page_selection(self.page_mode, self.page_range_text, self.page_count)
+
+    def pages_display(self) -> str:
+        """Short string for the queue 'Trang in' column."""
+        from app.utils import describe_pages
+        return describe_pages(self.page_mode, self.page_range_text)
 
 
 # ═════════════════════════════════════════════════════════════════════════

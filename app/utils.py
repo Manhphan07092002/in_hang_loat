@@ -97,3 +97,41 @@ def format_file_size(size_bytes: int) -> str:
 def get_timestamp() -> str:
     """Return the current time as ``HH:MM:SS``."""
     return datetime.now().strftime("%H:%M:%S")
+
+
+# ── Per-file page selection ────────────────────────────────────────────
+# mode: "all" | "custom" | "odd" | "even". value: custom range text.
+
+def resolve_page_selection(mode: str, value: str, max_pages: int) -> list[int]:
+    """Resolve a per-file page selection to 0-based page indices.
+
+    Raises ValueError with Vietnamese message on invalid input.
+    """
+    if max_pages <= 0:
+        raise ValueError("Tài liệu chưa xác định được số trang.")
+    mode = (mode or "all").strip().lower()
+    if mode in ("all", "", "tat ca"):
+        return list(range(max_pages))
+    if mode == "odd":
+        return [p - 1 for p in range(1, max_pages + 1) if p % 2 == 1]
+    if mode == "even":
+        return [p - 1 for p in range(1, max_pages + 1) if p % 2 == 0]
+    if mode == "custom":
+        p1 = parse_page_range(value or "", max_pages)
+        return [p - 1 for p in p1]
+    raise ValueError(f"Chế độ trang in không hợp lệ: '{mode}'.")
+
+
+def describe_pages(mode: str, value: str, max_len: int = 18) -> str:
+    """Short display string for the queue 'Trang in' column."""
+    mode = (mode or "all").strip().lower()
+    if mode in ("all", "", "tat ca"):
+        return "Tất cả"
+    if mode == "odd":
+        return "Lẻ"
+    if mode == "even":
+        return "Chẵn"
+    text = (value or "").strip()
+    if not text:
+        return "Tất cả"
+    return text if len(text) <= max_len else text[: max_len - 1] + "…"

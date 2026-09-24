@@ -34,14 +34,15 @@ import win32con
 from app.settings import (
     APP_NAME, WINDOW_TITLE, DEFAULT_SIZE, MIN_SIZE,
     PAPER_SIZES, CUSTOM_PAPER_LABEL, DUPLEX_MODES, ORIENTATIONS, THEME_COLORS,
-    PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM, PAGE_RANGE_OPTIONS,
+    PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM, PAGE_RANGE_ODD, PAGE_RANGE_EVEN,
+    PAGE_RANGE_OPTIONS, PAGE_MODE_BY_LABEL, PAGE_LABEL_BY_MODE,
     ORIENT_AUTO, ORIENT_PORTRAIT, ORIENT_LANDSCAPE, ORIENTATION_OPTIONS,
     BINDING_MARGIN_OPTIONS,
     SUPPORTED_EXTENSIONS, FILE_DIALOG_TYPES,
     FileStatus, STATUS_ICONS, STATUS_COLORS,
     parse_custom_paper, resolve_paper,
 )
-from app.utils import parse_page_range, format_file_size, get_timestamp
+from app.utils import parse_page_range, format_file_size, get_timestamp, resolve_page_selection
 from app.pdf_manager import PDFManager, FileInfo
 from app.printer_manager import PrinterManager
 from app.print_worker import PrintJob, PrintWorker, MultiPrinterCoordinator
@@ -130,6 +131,7 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         self._edit_entry: Optional[tk.Entry] = None
         self._sort_reverse: dict[str, bool] = {}
+        self._syncing_page_ui: bool = False
 
         # ── Build Layout ─────────────────────────────────────────────
         self.grid_rowconfigure(1, weight=1)
@@ -753,7 +755,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         table_container.grid_rowconfigure(0, weight=1)
         table_container.grid_columnconfigure(0, weight=1)
 
-        cols = ("stt", "filename", "filetype", "pages", "size", "copies", "status")
+        cols = ("stt", "filename", "filetype", "pages", "size", "pagesel", "copies", "status")
         self.tree = ttk.Treeview(
             table_container, columns=cols, show="headings",
             selectmode="extended", style="Modern.Treeview",
@@ -766,6 +768,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             ("filetype", "Định Dạng ⇕"),
             ("pages", "Số Trang ⇕"),
             ("size", "Kích Thước ⇕"),
+            ("pagesel", "Trang In ⇕"),
             ("copies", "Số Bản (✎) ⇕"),
             ("status", "Trạng Thái ⇕"),
         ]
@@ -776,12 +779,13 @@ class PDFBatchPrinterApp(ctk.CTk):
             )
 
         self.tree.column("stt", width=36, minwidth=32, anchor="center")
-        self.tree.column("filename", width=260, minwidth=140)
-        self.tree.column("filetype", width=75, minwidth=55, anchor="center")
-        self.tree.column("pages", width=68, minwidth=50, anchor="center")
-        self.tree.column("size", width=80, minwidth=60, anchor="center")
-        self.tree.column("copies", width=85, minwidth=60, anchor="center")
-        self.tree.column("status", width=115, minwidth=90, anchor="center")
+        self.tree.column("filename", width=230, minwidth=120)
+        self.tree.column("filetype", width=70, minwidth=55, anchor="center")
+        self.tree.column("pages", width=62, minwidth=50, anchor="center")
+        self.tree.column("size", width=75, minwidth=60, anchor="center")
+        self.tree.column("pagesel", width=90, minwidth=70, anchor="center")
+        self.tree.column("copies", width=80, minwidth=60, anchor="center")
+        self.tree.column("status", width=110, minwidth=90, anchor="center")
 
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -826,8 +830,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         """Dynamically expand the filename column to 100% of available space without clipping."""
         try:
             total_w = event.width
-            # Sum of fixed columns (stt:36, filetype:75, pages:68, size:80, copies:85, status:115) + scrollbar margin
-            fixed_w = 36 + 75 + 68 + 80 + 85 + 115 + 24
+            # Sum of fixed columns (stt:36, filetype:70, pages:62, size:75, pagesel:90, copies:80, status:110) + scrollbar margin
+            fixed_w = 36 + 70 + 62 + 75 + 90 + 80 + 110 + 24
             rem_w = max(140, total_w - fixed_w)
             self.tree.column("filename", width=rem_w)
         except Exception:
@@ -1066,8 +1070,18 @@ class PDFBatchPrinterApp(ctk.CTk):
             text_color=THEME_COLORS["text"],
         ).grid(row=5, column=0, sticky="w", padx=(14, 8), pady=3)
 
-        pg_box = ctk.CTkFrame(card, fg_color="transparent")
-        pg_box.grid(row=5, column=1, sticky="w", padx=(0, 14), pady=3)
+        pg_wrap = ctk.CTkFrame(card, fg_color="transparent")
+        pg_wrap.grid(row=5, column=1, sticky="w", padx=(0, 14), pady=3)
+
+        self.page_file_lbl = ctk.CTkLabel(
+            pg_wrap, text="📄 Chưa chọn tệp tin",
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            text_color=THEME_COLORS["text_muted"],
+        )
+        self.page_file_lbl.pack(anchor="w")
+
+        pg_box = ctk.CTkFrame(pg_wrap, fg_color="transparent")
+        pg_box.pack(anchor="w", pady=(2, 0))
 
         self.page_range_combo = ctk.CTkComboBox(
             pg_box, values=PAGE_RANGE_OPTIONS, variable=self._page_range_var,
@@ -1084,7 +1098,19 @@ class PDFBatchPrinterApp(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", size=11),
             corner_radius=8,
         )
+        self.custom_pages_entry.bind("<Return>", lambda e: self._commit_custom_pages())
+        self.custom_pages_entry.bind("<FocusOut>", lambda e: self._commit_custom_pages())
         self._custom_pages_visible = False
+
+        ctk.CTkButton(
+            pg_box, text="📋 Áp dụng cho tất cả", height=28,
+            command=self._apply_pages_to_all,
+            fg_color=THEME_COLORS["btn_secondary"],
+            hover_color=THEME_COLORS["btn_secondary_hover"],
+            text_color=THEME_COLORS["btn_secondary_text"],
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            corner_radius=6,
+        ).pack(side="left", padx=(6, 0))
 
         # ── 5. Khổ Giấy & Chiều In ───────────────────────────────────
         ctk.CTkLabel(
@@ -1561,6 +1587,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.file_type,
                 f.page_count,
                 format_file_size(f.file_size),
+                f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
             ))
@@ -1600,6 +1627,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 if hasattr(self, "selected_file_lbl"):
                     self.selected_file_lbl.configure(text=f"📄 {finfo.filename}", text_color=THEME_COLORS["text"])
                 self._copies_var.set(finfo.copies)
+                self._sync_page_ui_from_selection()
         except Exception:
             pass
 
@@ -1637,6 +1665,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.file_type,
                 f.page_count,
                 format_file_size(f.file_size),
+                f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
             ))
@@ -1681,6 +1710,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.file_type,
                 f.page_count,
                 format_file_size(f.file_size),
+                f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
             ))
@@ -1710,6 +1740,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             "filetype": lambda f: f.file_type.lower(),
             "pages": lambda f: int(f.page_count) if isinstance(f.page_count, int) else 0,
             "size": lambda f: f.file_size,
+            "pagesel": lambda f: f.pages_display(),
             "copies": lambda f: f.copies,
             "status": lambda f: str(f.status),
         }
@@ -1723,6 +1754,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             "filetype": "Định Dạng",
             "pages": "Số Trang",
             "size": "Kích Thước",
+            "pagesel": "Trang In",
             "copies": "Số Bản (✎)",
             "status": "Trạng Thái",
         }
@@ -1759,11 +1791,13 @@ class PDFBatchPrinterApp(ctk.CTk):
                 "copies": f.copies,
                 "filename": f.filename,
                 "file_type": f.file_type,
+                "pages": {"mode": getattr(f, "page_mode", "all"),
+                          "value": getattr(f, "page_range_text", "")},
             })
 
         try:
             with open(path, "w", encoding="utf-8") as fp:
-                json.dump({"version": "1.0", "files": data}, fp, indent=2, ensure_ascii=False)
+                json.dump({"version": "2.0", "files": data}, fp, indent=2, ensure_ascii=False)
             self._log(f"✓ Đã lưu danh sách {len(data)} tệp tin vào: {path}")
             messagebox.showinfo("Thành công", f"Đã lưu danh sách {len(data)} tệp tin thành công!")
         except Exception as exc:
@@ -1815,9 +1849,15 @@ class PDFBatchPrinterApp(ctk.CTk):
                     for it, f in zip(valid_items, futures):
                         src_path = it.get("source_path")
                         copies = it.get("copies", 1)
+                        pages = it.get("pages", {}) or {}
                         try:
                             info = f.result()
                             info.copies = max(1, min(999, int(copies)))
+                            mode = str(pages.get("mode", "all") or "all").lower()
+                            if mode not in ("all", "custom", "odd", "even"):
+                                mode = "all"
+                            info.page_mode = mode
+                            info.page_range_text = str(pages.get("value", "") or "")
                             added_infos.append(info)
                         except Exception as exc:
                             missing.append(f"{os.path.basename(src_path)} ({exc})")
@@ -1852,24 +1892,24 @@ class PDFBatchPrinterApp(ctk.CTk):
         region = self.tree.identify("region", event.x, event.y)
         if region == "cell":
             col = self.tree.identify_column(event.x)
-            if col == "#6":
+            if col == "#7":
                 item = self.tree.identify_row(event.y)
                 if item:
-                    self.after(40, lambda: self._start_inline_edit(item, "#6"))
+                    self.after(40, lambda: self._start_inline_edit(item, "#7"))
 
     def _on_tree_double_click(self, event):
-        """Double click on copies column (#6) starts editing copies; double click anywhere else opens full preview modal."""
+        """Double click on copies column (#7) starts editing copies; double click anywhere else opens full preview modal."""
         region = self.tree.identify("region", event.x, event.y)
         if region in ("cell", "tree"):
             item = self.tree.identify_row(event.y)
             if item:
                 col = self.tree.identify_column(event.x)
-                if col == "#6":
-                    self._start_inline_edit(item, "#6")
+                if col == "#7":
+                    self._start_inline_edit(item, "#7")
                 else:
                     self._preview_selected()
 
-    def _start_inline_edit(self, item, col_id="#6"):
+    def _start_inline_edit(self, item, col_id="#7"):
         """Spawn an in-place entry widget on the treeview cell for editing copies."""
         if not item:
             return
@@ -2002,7 +2042,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                         f"Tệp tin '{f.filename}' đã in xong.\nKhông thể sửa đổi số bản in của tệp đã in.",
                     )
                     return
-                self._start_inline_edit(item, "#6")
+                self._start_inline_edit(item, "#7")
         else:
             self._prompt_change_copies_dialog()
 
@@ -2461,7 +2501,54 @@ class PDFBatchPrinterApp(ctk.CTk):
         self._log(msg)
         self._save_config()
 
-    def _on_page_range_change(self, _v=None):
+    def _selected_indices(self) -> list[int]:
+        """Queue indices from current tree selection (in selection order)."""
+        indices = []
+        for item in self.tree.selection():
+            try:
+                idx = int(self.tree.item(item, "values")[0]) - 1
+                if 0 <= idx < len(self.file_list):
+                    indices.append(idx)
+            except Exception:
+                pass
+        return indices
+
+    def _editable_indices(self, indices: list[int]) -> tuple[list[int], list[str]]:
+        """Split into editable indices + skipped filenames (printing/printed)."""
+        ok, skipped = [], []
+        for i in indices:
+            f = self.file_list[i]
+            if is_edit_locked(f.status):
+                skipped.append(f.filename)
+            else:
+                ok.append(i)
+        return ok, skipped
+
+    def _sync_page_ui_from_selection(self):
+        """Show selected file's page setting in the settings panel."""
+        if getattr(self, "_syncing_page_ui", False):
+            return
+        self._syncing_page_ui = True
+        try:
+            indices = self._selected_indices()
+            if not indices:
+                if hasattr(self, "page_file_lbl"):
+                    self.page_file_lbl.configure(text="📄 Chưa chọn tệp tin")
+                return
+            first = self.file_list[indices[0]]
+            if len(indices) == 1:
+                label = f"📄 {first.filename}"
+            else:
+                label = f"📄 {len(indices)} tệp đã chọn (hiển thị file đầu: {first.filename})"
+            if hasattr(self, "page_file_lbl"):
+                self.page_file_lbl.configure(text=label if len(label) <= 52 else label[:51] + "…")
+            self._page_range_var.set(PAGE_LABEL_BY_MODE.get(first.page_mode, PAGE_RANGE_ALL))
+            self._custom_pages_var.set(first.page_range_text)
+            self._refresh_custom_pages_visibility()
+        finally:
+            self._syncing_page_ui = False
+
+    def _refresh_custom_pages_visibility(self):
         if self._page_range_var.get() == PAGE_RANGE_CUSTOM:
             if not self._custom_pages_visible:
                 self.custom_pages_entry.pack(
@@ -2471,6 +2558,95 @@ class PDFBatchPrinterApp(ctk.CTk):
             if self._custom_pages_visible:
                 self.custom_pages_entry.pack_forget()
                 self._custom_pages_visible = False
+
+    def _on_page_range_change(self, _v=None):
+        self._refresh_custom_pages_visibility()
+        if getattr(self, "_syncing_page_ui", False):
+            return
+        mode = PAGE_MODE_BY_LABEL.get(self._page_range_var.get(), "all")
+        indices = self._selected_indices()
+        if not indices:
+            self._save_config()
+            return
+        editable, skipped = self._editable_indices(indices)
+        if mode == "custom":
+            # Chờ nhập ô tùy chọn rồi Enter — không áp vội giá trị cũ
+            self._save_config()
+            return
+        for i in editable:
+            self.file_list[i].page_mode = mode
+            self.file_list[i].page_range_text = ""
+        if editable:
+            self._refresh_tree(preserve_selection=True)
+            self._update_stats_pill()
+            self._log(f"Đã đặt trang in [{self._page_range_var.get()}] cho {len(editable)} tệp tin")
+        if skipped:
+            self._log(f"⚠️ Bỏ qua {len(skipped)} tệp đang in / đã in xong khi đặt trang in")
+        self._save_config()
+
+    def _commit_custom_pages(self):
+        """Validate + apply custom range text to selected editable files."""
+        if getattr(self, "_syncing_page_ui", False):
+            return
+        if self._page_range_var.get() != PAGE_RANGE_CUSTOM:
+            return
+        raw = self._custom_pages_var.get().strip()
+        indices = self._selected_indices()
+        if not indices:
+            return
+        editable, skipped = self._editable_indices(indices)
+        if not editable:
+            if skipped:
+                messagebox.showwarning("Không thể chỉnh sửa", "Các tệp đang in / đã in xong, không thể đổi trang in.")
+            return
+        errors = []
+        for i in editable:
+            f = self.file_list[i]
+            try:
+                resolve_page_selection("custom", raw, f.page_count)
+            except ValueError as exc:
+                errors.append(f"{f.filename}: {exc}")
+        if errors:
+            messagebox.showwarning("Trang in không hợp lệ", "\n".join(errors[:5]))
+            return
+        for i in editable:
+            self.file_list[i].page_mode = "custom"
+            self.file_list[i].page_range_text = raw
+        self._refresh_tree(preserve_selection=True)
+        self._update_stats_pill()
+        self._log(f"Đã đặt trang in tùy chọn [{raw}] cho {len(editable)} tệp tin")
+        if skipped:
+            self._log(f"⚠️ Bỏ qua {len(skipped)} tệp đang in / đã in xong")
+        self._save_config()
+
+    def _apply_pages_to_all(self):
+        """Apply current panel page setting to every editable file (spec §9)."""
+        mode = PAGE_MODE_BY_LABEL.get(self._page_range_var.get(), "all")
+        raw = self._custom_pages_var.get().strip()
+        if mode == "custom":
+            if not raw:
+                messagebox.showinfo("Áp dụng cho tất cả", "Vui lòng nhập phạm vi trang tùy chọn trước.")
+                return
+            # Validate mẫu trên file đầu để báo lỗi sớm (số trang mỗi file check lúc in)
+            try:
+                parse_page_range(raw, 10 ** 9)
+            except ValueError as exc:
+                messagebox.showwarning("Trang in không hợp lệ", str(exc))
+                return
+        updated, skipped = 0, 0
+        for f in self.file_list:
+            if is_edit_locked(f.status):
+                skipped += 1
+                continue
+            f.page_mode = mode
+            f.page_range_text = raw if mode == "custom" else ""
+            updated += 1
+        self._refresh_tree(preserve_selection=True)
+        self._update_stats_pill()
+        msg = f"Đã áp dụng trang in [{self._page_range_var.get()}{' ' + raw if mode == 'custom' else ''}] cho {updated} tệp tin"
+        if skipped:
+            msg += f" (bỏ qua {skipped} tệp đang in/đã in)"
+        self._log(msg)
         self._save_config()
 
     # ── Custom paper size ────────────────────────────────────────────
@@ -2584,9 +2760,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         prep_bar.set(0)
         self.configure(cursor="wait")
 
-        # Snapshot cài đặt để thread nền không chạm widget Tk
-        _page_mode = self._page_range_var.get()
-        _custom_raw = self._custom_pages_var.get()
+        # Snapshot cài đặt để thread nền không chạm widget Tk.
+        # Trang in là thuộc tính RIÊNG từng file (finfo.page_mode/value).
         _printers_snapshot = list(printers_to_use)
 
         import threading
@@ -2609,15 +2784,12 @@ class PDFBatchPrinterApp(ctk.CTk):
                     error = f"Không thể chuẩn bị file: {finfo.filename}\n{conv_exc}"
                     break
 
-                if _page_mode == PAGE_RANGE_CUSTOM:
-                    try:
-                        p1 = parse_page_range(_custom_raw, finfo.page_count)
-                    except ValueError as exc:
-                        error = f"File: {finfo.filename}\n⚠ {exc}"
-                        break
-                    p0 = [p - 1 for p in p1]
-                else:
-                    p0 = list(range(finfo.page_count))
+                # 1. Trang in RIÊNG từng file (không dùng biến chung)
+                try:
+                    p0 = resolve_page_selection(finfo.page_mode, finfo.page_range_text, finfo.page_count)
+                except ValueError as exc:
+                    error = f"File: {finfo.filename}\n⚠ {exc}"
+                    break
 
                 if remove_blanks:
                     p0, skipped = PDFManager.filter_pages(finfo.pdf_path, p0, remove_blanks=True)

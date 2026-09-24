@@ -107,7 +107,18 @@ STATUS_COLORS = {
 # ── Page-range options ───────────────────────────────────────────────────────
 PAGE_RANGE_ALL = "Tất cả các trang"
 PAGE_RANGE_CUSTOM = "Trang tùy chọn"
-PAGE_RANGE_OPTIONS = [PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM]
+PAGE_RANGE_ODD = "Trang lẻ"
+PAGE_RANGE_EVEN = "Trang chẵn"
+PAGE_RANGE_OPTIONS = [PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM, PAGE_RANGE_ODD, PAGE_RANGE_EVEN]
+
+PAGE_MODE_BY_LABEL = {
+    PAGE_RANGE_ALL: "all",
+    PAGE_RANGE_CUSTOM: "custom",
+    PAGE_RANGE_ODD: "odd",
+    PAGE_RANGE_EVEN: "even",
+}
+
+PAGE_LABEL_BY_MODE = {v: k for k, v in PAGE_MODE_BY_LABEL.items()}
 
 # ── Orientation options ──────────────────────────────────────────────────────
 ORIENT_AUTO = "Tự động"
