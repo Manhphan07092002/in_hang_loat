@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hướng Dẫn Sử Dụng — PDF Batch Printer Pro</title>
+    <style>
+        :root {
+            --primary: #2563EB;
+            --primary-dark: #1D4ED8;
+            --primary-light: #EFF6FF;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --bg: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding-bottom: 60px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1E40AF 0%, #2563EB 50%, #3B82F6 100%);
+            color: #FFFFFF;
+            padding: 40px 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.2);
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 15px;
+            opacity: 0.92;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: -24px auto 0 auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin: 16px 0 8px 0;
+        }
+
+        p, li {
+            font-size: 14px;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        ul, ol {
+            padding-left: 22px;
+            margin-bottom: 12px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .step-box {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            background-color: #F8FAFC;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .step-num {
+            width: 32px;
+            height: 32px;
+            background-color: var(--primary);
+            color: #FFFFFF;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .feature-card {
+            background-color: #F8FAFC;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .feature-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--primary-dark);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--primary-light);
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-right: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: #F1F5F9;
+            color: #475569;
+            font-weight: 700;
+        }
+
+        tr:hover {
+            background-color: #F8FAFC;
+        }
+
+        kbd {
+            background-color: #E2E8F0;
+            border: 1px solid #CBD5E1;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: bold;
+            color: #1E293B;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+
+        .alert-box {
+            background-color: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 8px;
+            padding: 14px 18px;
+            color: #1E40AF;
+            font-size: 13px;
+            margin: 14px 0;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-content">
+            <h1>🖨️ HƯỚNG DẪN SỬ DỤNG</h1>
+            <p>PDF BATCH PRINTER PRO — PHẦN MỀM IN TỰ ĐỘNG HÀNG LOẠT CHUYÊN NGHIỆP</p>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- Quick Start -->
+        <div class="card">
+            <h2>🚀 1. Quy Trình Bắt Đầu Nhanh Trong 3 Bước</h2>
+
+            <div class="step-box">
+                <div class="step-num">1</div>
+                <div>
+                    <strong>Thêm tệp tin cần in vào hàng đợi:</strong>
+                    <p>Kéo thả trực tiếp tệp tin hoặc thư mục vào bảng hàng đợi, hoặc nhấn nút <span class="badge">➕ Thêm File</span> / <span class="badge">📁 Thư Mục</span> trên thanh công cụ. Hỗ trợ đầy đủ: <strong>PDF, Word (.docx, .doc), Excel (.xlsx, .xls), PowerPoint (.pptx, .ppt) và Hình ảnh (.jpg, .png, .bmp, .tiff)</strong>.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-num">2</div>
+                <div>
+                    <strong>Chọn máy in và thiết lập thông số:</strong>
+                    <p>Chọn máy in từ danh sách, chọn khổ giấy (A4, A5, Letter...), chiều in (Dọc, Ngang, Tự động) và chế độ in (1 mặt hoặc 2 mặt). Điều chỉnh số lượng bản in cho từng file hoặc áp dụng đồng loạt.</p>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-num">3</div>
+                <div>
+                    <strong>Bấm bắt đầu in:</strong>
+                    <p>Nhấn nút <span class="badge" style="background-color:#DCFCE7; color:#166534;">▶️ BẮT ĐẦU IN</span>. Hệ thống sẽ hiển thị bảng xác nhận tổng số trang và tổng số bản. Nhấn <strong>Có</strong> để tiến hành in tự động liên tục.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart Printing Features -->
+        <div class="card">
+            <h2>⚙️ 2. Các Tính Năng In Ấn Thông Minh Độc Quyền</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-title">🚫 Tự Động Bỏ Trang Trắng</div>
+                    <p>Tự động phân tích từng trang tài liệu (quét văn bản, vector, ảnh và ma trận điểm ảnh). Nếu phát hiện trang trắng tinh ở cuối file hoặc file scan, hệ thống sẽ tự động bỏ qua không in, giúp tiết kiệm giấy tối đa.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-title">📄 Chèn Trang Bìa Phân Cách (Slip Sheet)</div>
+                    <p>Tự động in 1 tờ bìa màu trang nhã chứa thông tin (Tên tệp, Thứ tự #doc, Số trang, Số bản, Ngày giờ, Máy in) ở giữa các tệp. Giúp phân loại từng bộ hồ sơ ngay trên khay giấy mà không bị lẫn lộn.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-title">🔄 In Đảo Ngược (Trang cuối → 1)</div>
+                    <p>Tự động in từ trang cuối về trang đầu. Phù hợp cho các dòng máy in nhả giấy mặt ngửa, giúp trang 1 luôn nằm trên cùng sau khi in xong mà không cần mất công lật lại tay.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-title">📏 Căn Lề Đóng Gáy Sách (Binding Margin)</div>
+                    <p>Hỗ trợ bù lề <strong>10mm, 15mm, 20mm, 25mm</strong>. Cơ chế bù lề 2 mặt thông minh (trang lẻ dịch phải, trang chẵn dịch trái) giúp đóng gáy xoắn, dập ghim lỗ mà không bị đè vào nội dung chữ.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-title">🖨️ In Song Song Ra Nhiều Máy In</div>
+                    <p>Nhấn nút <em>"🖨️ In song song..."</em> để tích chọn 2 hoặc nhiều máy in. Hệ thống điều phối đa luồng chia đều danh sách tài liệu và in đồng thời trên các máy, tăng tốc độ hoàn thành gấp 2x, 3x.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-title">🛡️ Tự Động Chuyển Dự Phòng (Failover)</div>
+                    <p>Chọn <em>"Máy in dự phòng"</em>. Khi máy in chính gặp sự cố (kẹt giấy, hết giấy, mất kết nối), hệ thống tự động phát hiện và chuyển mẻ in sang máy in dự phòng ngay lập tức mà không bị gián đoạn.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shortcuts & Hotkeys -->
+        <div class="card">
+            <h2>⌨️ 3. Phím Tắt & Thao Tác Nhanh Tiện Lợi</h2>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Phím Tắt / Thao Tác</th>
+                        <th>Chức Năng</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><kbd>+</kbd> hoặc <kbd>=</kbd></td>
+                        <td>Tăng ngay +1 bản in cho các tệp đang chọn trong hàng đợi</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>-</kbd> hoặc <kbd>_</kbd></td>
+                        <td>Giảm -1 bản in cho các tệp đang chọn (tối thiểu 1 bản)</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>1</kbd> đến <kbd>9</kbd></td>
+                        <td>Đặt nhanh chính xác số bản in tương ứng (1 đến 9 bản)</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>F2</kbd> / Click đúp / <kbd>Enter</kbd></td>
+                        <td>Mở ô nhập liệu sửa trực tiếp số bản in ngay trên dòng tệp tin</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Ctrl</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td>
+                        <td>Di chuyển tệp tin lên trên hoặc xuống dưới để thay đổi thứ tự in</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Delete</kbd></td>
+                        <td>Xóa các tệp tin đang chọn khỏi hàng đợi</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Ctrl</kbd> + <kbd>A</kbd></td>
+                        <td>Chọn toàn bộ tất cả tệp tin trong hàng đợi</td>
+                    </tr>
+                    <tr>
+                        <td>Chuột phải vào hàng đợi</td>
+                        <td>Mở menu ngữ cảnh: Đặt nhanh số bản (1, 2, 3, 5, 10, 20), Xem trước, Chỉ in mục chọn...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Queue Management -->
+        <div class="card">
+            <h2>📂 4. Quản Lý Hàng Đợi & Lưu Trữ Phiên In</h2>
+            <ul>
+                <li><strong>💾 Lưu DS:</strong> Lưu toàn bộ danh sách tệp tin và số lượng bản in hiện tại thành tệp <code>.json</code> để tái sử dụng trong các ca làm việc sau.</li>
+                <li><strong>📂 Mở DS:</strong> Nạp lại toàn bộ danh sách tệp tin đã lưu trước đó chỉ với 1 click.</li>
+                <li><strong>🎯 Chỉ In Mục Chọn:</strong> Cho phép bôi đen chọn 1 hoặc vài tệp riêng lẻ để in mà không cần in toàn bộ hàng đợi.</li>
+                <li><strong>🔄 In Lại Tệp Lỗi / Hủy:</strong> Tự động quét và in lại những tệp tin bị lỗi hoặc bị hủy mà không cần chọn lại thủ công.</li>
+            </ul>
+        </div>
+
+        <!-- Troubleshooting & Clean Uninstall -->
+        <div class="card">
+            <h2>🧹 5. Khắc Phục Sự Cố & Gỡ Cài Đặt Sạch Sẽ</h2>
+            <div class="alert-box">
+                <strong>💡 Lưu ý về in tệp Office (Word, Excel, PowerPoint):</strong> Ứng dụng tự động chuyển đổi sang PDF chất lượng cao. Đảm bảo máy tính đã cài đặt bộ Microsoft Office hoặc trình đọc Office để quá trình chuyển đổi đạt độ tương thích chuẩn 100%.
+            </div>
+
+            <h3>Gỡ cài đặt hoàn toàn:</h3>
+            <p>Để gỡ cài đặt phần mềm, bạn có thể vào <strong>Windows Settings → Apps & Features → Chọn PDF Batch Printer Pro → Gỡ cài đặt (Uninstall)</strong>.</p>
+            <p>Trình gỡ cài đặt tích hợp sẵn tính năng <strong>"Xóa sạch toàn bộ cấu hình (config.json), lịch sử và tệp tin tạm"</strong> giúp dọn dẹp 100% dữ liệu cũ khỏi máy tính của bạn.</p>
+        </div>
+
+        <div class="footer">
+            <p>© 2026 PDF Batch Printer Pro Team. Chúc bạn có trải nghiệm in ấn hiệu quả và tiện lợi!</p>
+        </div>
+
+    </div>
+
+</body>
+</html>
