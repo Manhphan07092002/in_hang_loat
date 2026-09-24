@@ -1,4 +1,4 @@
-# 🖨️ PDF Batch Printer Pro — v1.0.0.2
+# 🖨️ PDF Batch Printer Pro — v1.0.0.3
 
 Phần mềm Windows chuyên nghiệp để **in ấn hàng loạt tệp tài liệu đa định dạng (PDF, Word, Excel, PowerPoint, Ảnh)** với giao diện hiện đại, tối ưu tốc độ và an toàn quy trình.
 
@@ -42,7 +42,9 @@ Phần mềm Windows chuyên nghiệp để **in ấn hàng loạt tệp tài li
    - In song song nhiều máy, tự chuyển máy dự phòng (failover) khi lỗi.
    - Bỏ trang trắng tự động, tờ bìa phân cách, lề đóng gáy, đảo thứ tự trang, vừa trang giấy.
 
-9. **Giao Diện CLI**: chạy tương tác hoặc tích hợp script tự động hóa.
+9. **Giao Diện CLI**: chạy tương tác hoặc tích hợp script tự động hóa (`--check-update` để kiểm tra bản mới).
+
+10. **Tự Động Cập Nhật**: app tự kiểm tra GitHub Releases mỗi ngày khi mở (êm, không chặn UI), nút `🔄 Cập nhật` hiện badge khi có bản mới, tải và chạy cài đặt ngay trong app. Bỏ qua bản nào thì nhớ, không hỏi lại.
 
 ---
 
@@ -130,6 +132,7 @@ python cli.py -f a.pdf -p "HP LaserJet" -c 2 --pages 1-5,8 --duplex short --pape
 | `--orient` | `auto`, `portrait`, `landscape` |
 | `--no-fit` | Tắt tự co vừa trang giấy |
 | `-l/--list-printers` | Liệt kê máy in rồi thoát |
+| `--check-update` | Kiểm tra bản mới trên GitHub Releases rồi thoát |
 
 ---
 
@@ -203,6 +206,7 @@ pdf-batch-printer/
 
 ## 📝 Lịch Sử Version
 
+- **v1.0.0.3** — Tự động cập nhật từ GitHub Releases (check nền 1 lần/ngày, badge nút Cập nhật, tải + cài trong app, `Bỏ qua bản này`, CLI `--check-update`).
 - **v1.0.0.2** — Version một nguồn (`settings.py`, tự sinh `version_info.txt` + `installer.iss` khi build), log file xoay vòng (`%APPDATA%/logs/app.log`), khổ giấy tùy chỉnh R×C mm (DMPAPER_USER), `requirements-dev.txt`, gỡ `config.json` khỏi git, thống nhất số liệu thống kê, theme repaint full.
 - **v1.0.0.1** — Nhúng version EXE, config `%APPDATA%` + migration, khổ A3, tái dùng Office COM (timeout 180s), tách `config_store`/`queue_store`, hỗ trợ `.webp`, in nền không treo UI, bộ test 60 case.
 - **v1.0.0** — Bản đầu tiên: GUI + CLI, in đa định dạng, preview, failover, setup wizard.

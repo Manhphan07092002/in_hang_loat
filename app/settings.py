@@ -6,7 +6,7 @@ import win32con
 
 # ── Application ──────────────────────────────────────────────────────────────
 APP_NAME = "PDF Batch Printer Pro"
-APP_VERSION = "1.0.0.2"  # NGUỒN DUY NHẤT — build script tự sinh version_info.txt & installer.iss từ đây
+APP_VERSION = "1.0.0.3"  # NGUỒN DUY NHẤT — build script tự sinh version_info.txt & installer.iss từ đây
 WINDOW_TITLE = "PDF Batch Printer Pro — In Hàng Loạt Chuyên Nghiệp"
 DEFAULT_SIZE = (1300, 780)
 MIN_SIZE = (860, 560)

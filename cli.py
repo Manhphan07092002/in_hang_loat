@@ -339,6 +339,22 @@ def run_cli_args(args):
         list_printers()
         return
 
+    if getattr(args, "check_update", False):
+        from app.updater import check_for_updates
+        print_banner()
+        print("⏳ Đang kiểm tra cập nhật...")
+        info = check_for_updates()
+        if info.get("error"):
+            print(f"⚠️ {info['error']}")
+        elif info.get("has_update"):
+            print(f"🎉 Có bản mới v{info['latest']} (bạn đang dùng v{info['current']})")
+            print(f"🔗 {info['url']}")
+            if info.get("asset_name"):
+                print(f"📦 File: {info['asset_name']}")
+        else:
+            print(f"✓ Bạn đang dùng bản mới nhất (v{info['current']}).")
+        return
+
     pdf_mgr = PDFManager()
     collected_paths: list[str] = []
 
@@ -500,6 +516,10 @@ def main():
     parser.add_argument(
         "-l", "--list-printers", action="store_true",
         help="Liệt kê danh sách tất cả máy in hiện có và thoát",
+    )
+    parser.add_argument(
+        "--check-update", action="store_true",
+        help="Kiểm tra bản mới trên GitHub Releases rồi thoát",
     )
 
     args = parser.parse_args()

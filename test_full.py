@@ -8,6 +8,7 @@ Bao phu: settings, utils, pdf_manager, file_converter, printer_manager,
 """
 import os
 import sys
+import json
 import shutil
 import tempfile
 import threading
@@ -723,6 +724,79 @@ class TestFileLogger(unittest.TestCase):
             al._handler_added = False
 
 
+# ================= UPDATER =================
+class TestUpdater(unittest.TestCase):
+    def test_version_compare(self):
+        from app.updater import parse_version, is_newer
+        self.assertEqual(parse_version("v1.0.0.3"), (1, 0, 0, 3))
+        self.assertEqual(parse_version("1.0"), (1, 0, 0, 0))
+        self.assertTrue(is_newer("1.0.0.2", "v1.0.0.3"))
+        self.assertFalse(is_newer("1.0.0.3", "1.0.0.3"))
+        self.assertFalse(is_newer("1.0.0.3", "1.0.0.2"))
+
+    def test_should_auto_check(self):
+        from app.updater import should_auto_check
+        import datetime
+        self.assertTrue(should_auto_check(""))
+        self.assertTrue(should_auto_check("not-a-date"))
+        self.assertTrue(should_auto_check((datetime.datetime.now() - datetime.timedelta(hours=25)).isoformat()))
+        self.assertFalse(should_auto_check(datetime.datetime.now().isoformat()))
+
+    def _fake_resp(self, payload):
+        import io
+        data = json.dumps(payload).encode()
+        m = mock.MagicMock()
+        m.__enter__.return_value = io.BytesIO(data)
+        m.__exit__.return_value = False
+        return m
+
+    def test_check_newer_with_setup_asset(self):
+        from app import updater
+        payload = {"tag_name": "v9.9.9.9", "body": "notes",
+                   "html_url": "https://x/y",
+                   "assets": [{"name": "App_Setup.exe", "browser_download_url": "https://x/setup.exe"},
+                              {"name": "App.exe", "browser_download_url": "https://x/app.exe"}]}
+        with mock.patch.object(updater, "get_current_version", return_value="1.0.0.3"), \
+             mock.patch("urllib.request.urlopen", return_value=self._fake_resp(payload)):
+            info = updater.check_for_updates()
+        self.assertTrue(info["has_update"])
+        self.assertEqual(info["latest"], "9.9.9.9")
+        self.assertEqual(info["url"], "https://x/setup.exe")
+
+    def test_check_up_to_date(self):
+        from app import updater
+        payload = {"tag_name": "v1.0.0.3", "body": "", "html_url": "", "assets": []}
+        with mock.patch.object(updater, "get_current_version", return_value="1.0.0.3"), \
+             mock.patch("urllib.request.urlopen", return_value=self._fake_resp(payload)):
+            info = updater.check_for_updates()
+        self.assertFalse(info["has_update"])
+
+    def test_check_network_error(self):
+        from app import updater
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("offline")):
+            info = updater.check_for_updates()
+        self.assertFalse(info["has_update"])
+        self.assertIn("offline", info["error"])
+
+    def test_download_progress(self):
+        from app import updater
+        import io
+        content = b"0123456789" * 100
+        m = mock.MagicMock()
+        m.headers = {"Content-Length": str(len(content))}
+        m.read.side_effect = [content[:500], content[500:], b""]
+        m.__enter__.return_value = m
+        m.__exit__.return_value = False
+        seen = []
+        with mock.patch("urllib.request.urlopen", return_value=m):
+            dest = os.path.join(tempfile.mkdtemp(), "u.exe")
+            out = updater.download_asset("https://x/u.exe", dest=dest,
+                                         progress_cb=lambda d, t: seen.append((d, t)))
+        self.assertEqual(out, dest)
+        self.assertEqual(os.path.getsize(dest), len(content))
+        self.assertTrue(seen)
+
+
 # ================= PREVIEW =================
 class TestPreviewLogic(unittest.TestCase):
     def test_get_paper_name_all(self):
@@ -767,6 +841,7 @@ class TestCLI(unittest.TestCase):
             pdf = make_pdf(os.path.join(tmp, "d.pdf"), 5)
             args = mock.MagicMock()
             args.list_printers = False
+            args.check_update = False
             args.files = [pdf]
             args.dir = None
             args.recursive = False
@@ -794,6 +869,7 @@ class TestCLI(unittest.TestCase):
             pdf = make_pdf(os.path.join(tmp, "d.pdf"), 2)
             args = mock.MagicMock()
             args.list_printers = False
+            args.check_update = False
             args.files = [pdf]
             args.dir = None
             args.recursive = False
@@ -810,6 +886,18 @@ class TestCLI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
             cleanup_temp()
+
+    def test_cli_check_update_flag(self):
+        import cli
+        args = mock.MagicMock()
+        args.list_printers = False
+        args.check_update = True
+        fake = {"has_update": True, "current": "1.0.0.3", "latest": "9.9.9.9",
+                "url": "https://x/y", "asset_name": "App_Setup.exe", "error": ""}
+        with mock.patch("app.updater.check_for_updates", return_value=fake), \
+             mock.patch("cli.execute_print_jobs") as exe:
+            cli.run_cli_args(args)
+            exe.assert_not_called()
 
     def test_cli_list_printers(self):
         import cli
