@@ -783,13 +783,13 @@ class PDFBatchPrinterApp(ctk.CTk):
             )
 
         self.tree.column("stt", width=36, minwidth=32, anchor="center")
-        self.tree.column("filename", width=230, minwidth=120)
-        self.tree.column("filetype", width=70, minwidth=55, anchor="center")
-        self.tree.column("pages", width=62, minwidth=50, anchor="center")
-        self.tree.column("size", width=75, minwidth=60, anchor="center")
-        self.tree.column("pagesel", width=90, minwidth=70, anchor="center")
-        self.tree.column("copies", width=80, minwidth=60, anchor="center")
-        self.tree.column("status", width=110, minwidth=90, anchor="center")
+        self.tree.column("filename", width=200, minwidth=100)
+        self.tree.column("filetype", width=85, minwidth=75, anchor="center")
+        self.tree.column("pages", width=70, minwidth=60, anchor="center")
+        self.tree.column("size", width=85, minwidth=75, anchor="center")
+        self.tree.column("pagesel", width=95, minwidth=85, anchor="center")
+        self.tree.column("copies", width=90, minwidth=70, anchor="center")
+        self.tree.column("status", width=105, minwidth=95, anchor="center")
 
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -834,9 +834,9 @@ class PDFBatchPrinterApp(ctk.CTk):
         """Dynamically expand the filename column to 100% of available space without clipping."""
         try:
             total_w = event.width
-            # Sum of fixed columns (stt:36, filetype:70, pages:62, size:75, pagesel:90, copies:80, status:110) + scrollbar margin
-            fixed_w = 36 + 70 + 62 + 75 + 90 + 80 + 110 + 24
-            rem_w = max(140, total_w - fixed_w)
+            # Sum of fixed columns (stt:36, filetype:85, pages:70, size:85, pagesel:95, copies:90, status:105) + scrollbar margin
+            fixed_w = 36 + 85 + 70 + 85 + 95 + 90 + 105 + 24
+            rem_w = max(100, total_w - fixed_w)
             self.tree.column("filename", width=rem_w)
         except Exception:
             pass
