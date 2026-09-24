@@ -1174,6 +1174,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             command=self.start_print,
             fg_color=THEME_COLORS["success"],
             hover_color=THEME_COLORS["success_hover"],
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
             corner_radius=8,
         )
@@ -1190,6 +1191,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             command=self.pause_print, state="disabled",
             fg_color=THEME_COLORS["warning"],
             hover_color=THEME_COLORS["warning_hover"],
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=8,
         )
@@ -1200,6 +1202,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             command=self.cancel_print, state="disabled",
             fg_color=THEME_COLORS["danger"],
             hover_color=THEME_COLORS["danger_hover"],
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
             corner_radius=8,
         )
@@ -1216,6 +1219,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             command=self.start_print_selected,
             fg_color=THEME_COLORS["primary"],
             hover_color=THEME_COLORS["primary_hover"],
+            text_color="#FFFFFF",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             corner_radius=8,
         )
