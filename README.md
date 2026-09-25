@@ -185,7 +185,15 @@ pdf-batch-printer/
 ├── test_full.py            # Bộ test toàn diện (60 test)
 ├── test_suite.py           # Bộ test gốc
 └── app/
-    ├── gui.py              # Giao diện CustomTkinter
+    ├── gui/                  # Package giao diện (mỗi file ≤300 dòng → PDFBatchPrinterApp)
+    │   ├── shell/app_state/header.py   # Khung app, config, header/theme
+    │   ├── updater_ui/invoice_ui.py    # Tự cập nhật, nhận diện hóa đơn
+    │   ├── panels/action_card.py       # Dashboard, log, tiến trình, nút in
+    │   ├── queue_view/tools/add/manage/session.py  # Bảng, reflow, nạp, sắp xếp, phiên
+    │   ├── copies_edit/bulk.py         # Sửa inline + menu chuột phải
+    │   ├── pages_edit/popup.py         # Trang in riêng từng file
+    │   ├── settings_shell/printer/pages/paper/extra.py  # Card cài đặt
+    │   └── printers/print_prepare/print_run/paths.py
     ├── config_store.py     # Config %APPDATA% + migration
     ├── queue_store.py      # Logic hàng đợi thuần (test được headless)
     ├── pdf_manager.py      # Nạp/render/lọc trang/separator
