@@ -1,6 +1,6 @@
 ; Inno Setup Script for PDF Batch Printer Pro
 #define MyAppName "PDF Batch Printer Pro"
-#define MyAppVersion "1.0.0.4"
+#define MyAppVersion "1.0.0.5"
 #define MyAppPublisher "PDF Batch Printer Pro Team"
 #define MyAppExeName "PDFBatchPrinterPro.exe"
 
