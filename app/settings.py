@@ -6,7 +6,7 @@ import win32con
 
 # ── Application ──────────────────────────────────────────────────────────────
 APP_NAME = "PDF Batch Printer Pro"
-APP_VERSION = "1.0.0.3"  # NGUỒN DUY NHẤT — build script tự sinh version_info.txt & installer.iss từ đây
+APP_VERSION = "1.0.0.4"  # NGUỒN DUY NHẤT — build script tự sinh version_info.txt & installer.iss từ đây
 WINDOW_TITLE = "PDF Batch Printer Pro — In Hàng Loạt Chuyên Nghiệp"
 DEFAULT_SIZE = (1300, 780)
 MIN_SIZE = (860, 560)
@@ -152,6 +152,12 @@ def resolve_paper(paper: str) -> tuple[str, object]:
         return "standard", PAPER_SIZES[paper]
     return "custom", parse_custom_paper(paper)
 
+
+# ── Invoice detection modes ────────────────────────────────────────────
+INVOICE_OFF = "Tắt"
+INVOICE_AUTO = "Tự động"
+INVOICE_WARN = "Chỉ cảnh báo"
+INVOICE_MODES = [INVOICE_OFF, INVOICE_AUTO, INVOICE_WARN]
 
 # ── Binding Margin Options (mm) ──────────────────────────────────────────────
 BINDING_MARGIN_OPTIONS = {

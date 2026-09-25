@@ -37,6 +37,7 @@ from app.settings import (
     PAGE_RANGE_ALL, PAGE_RANGE_CUSTOM, PAGE_RANGE_ODD, PAGE_RANGE_EVEN,
     PAGE_RANGE_OPTIONS, PAGE_MODE_BY_LABEL, PAGE_LABEL_BY_MODE,
     ORIENT_AUTO, ORIENT_PORTRAIT, ORIENT_LANDSCAPE, ORIENTATION_OPTIONS,
+    INVOICE_OFF, INVOICE_AUTO, INVOICE_WARN, INVOICE_MODES,
     BINDING_MARGIN_OPTIONS,
     SUPPORTED_EXTENSIONS, FILE_DIALOG_TYPES,
     FileStatus, STATUS_ICONS, STATUS_COLORS,
@@ -52,6 +53,7 @@ from app.config_store import CONFIG_FILE, get_app_data_dir, load_config, save_co
 from app.queue_store import apply_move, dedupe_paths, is_edit_locked, queue_summary, retry_indices
 from app.app_logger import log_info, log_error, get_log_dir
 from app import updater as app_updater
+from app import invoice_detect as inv_detect
 from PIL import Image, ImageTk
 import sys
 
@@ -125,6 +127,10 @@ class PDFBatchPrinterApp(ctk.CTk):
         self._reverse_order_var = tk.BooleanVar(value=self._cfg.get("reverse_order", False))
         self._binding_margin_var = tk.StringVar(value=self._cfg.get("binding_margin", "0 mm (Chuẩn)"))
         self._saved_failover = self._cfg.get("failover_printer", "(Không dùng)")
+        _inv = self._cfg.get("invoice_mode", INVOICE_AUTO)
+        if _inv not in INVOICE_MODES:
+            _inv = INVOICE_AUTO
+        self._invoice_mode_var = tk.StringVar(value=_inv)
         self._failover_printer_var = tk.StringVar(value=self._saved_failover)
         self._parallel_printers: list[str] = []
         self._available_printers: list[str] = []
@@ -230,6 +236,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 "reverse_order": self._reverse_order_var.get(),
                 "binding_margin": self._binding_margin_var.get(),
                 "failover_printer": self._failover_printer_var.get(),
+                "invoice_mode": self._invoice_mode_var.get() if hasattr(self, "_invoice_mode_var") else INVOICE_AUTO,
                 "update_last_check": self._cfg.get("update_last_check", ""),
                 "update_skip_version": self._cfg.get("update_skip_version", ""),
             }
@@ -773,7 +780,7 @@ class PDFBatchPrinterApp(ctk.CTk):
         table_container.grid_rowconfigure(0, weight=1)
         table_container.grid_columnconfigure(0, weight=1)
 
-        cols = ("stt", "filename", "filetype", "pages", "size", "pagesel", "copies", "status")
+        cols = ("stt", "filename", "filetype", "pages", "size", "pagesel", "copies", "status", "doctype", "duplex")
         self.tree = ttk.Treeview(
             table_container, columns=cols, show="headings",
             selectmode="extended", style="Modern.Treeview",
@@ -789,6 +796,8 @@ class PDFBatchPrinterApp(ctk.CTk):
             ("pagesel", "Trang In ⇕"),
             ("copies", "Số Bản (✎) ⇕"),
             ("status", "Trạng Thái ⇕"),
+            ("doctype", "Loại ⇕"),
+            ("duplex", "2 Mặt ⇕"),
         ]
         for col_id, h_text in headings_map:
             self.tree.heading(
@@ -804,6 +813,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         self.tree.column("pagesel", width=95, minwidth=85, anchor="center")
         self.tree.column("copies", width=90, minwidth=70, anchor="center")
         self.tree.column("status", width=105, minwidth=95, anchor="center")
+        self.tree.column("doctype", width=90, minwidth=75, anchor="center")
+        self.tree.column("duplex", width=85, minwidth=70, anchor="center")
 
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -935,8 +946,8 @@ class PDFBatchPrinterApp(ctk.CTk):
         """Dynamically expand the filename column to 100% of available space without clipping."""
         try:
             total_w = event.width
-            # Sum of fixed columns (stt:36, filetype:85, pages:70, size:85, pagesel:95, copies:90, status:105) + scrollbar margin
-            fixed_w = 36 + 85 + 70 + 85 + 95 + 90 + 105 + 24
+            # Sum of fixed columns (stt:36, filetype:85, pages:70, size:85, pagesel:95, copies:90, status:105, doctype:90, duplex:85) + scrollbar margin
+            fixed_w = 36 + 85 + 70 + 85 + 95 + 90 + 105 + 90 + 85 + 24
             rem_w = max(100, total_w - fixed_w)
             self.tree.column("filename", width=rem_w)
         except Exception:
@@ -1290,6 +1301,24 @@ class PDFBatchPrinterApp(ctk.CTk):
         )
         self.default_copies_entry.pack(side="left")
 
+        # Detection status + override (per selected file)
+        doc_row = _row()
+        self.doc_info_lbl = ctk.CTkLabel(
+            doc_row, text="",
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            text_color=THEME_COLORS["text_muted"],
+        )
+        self.doc_info_lbl.pack(side="left")
+        self.btn_duplex_reset = ctk.CTkButton(
+            doc_row, text="↩ Về mặc định chung", height=24,
+            command=self._reset_file_duplex,
+            fg_color=THEME_COLORS["btn_secondary"],
+            hover_color=THEME_COLORS["btn_secondary_hover"],
+            text_color=THEME_COLORS["btn_secondary_text"],
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            corner_radius=6,
+        )
+
         # ══ Section 3: Giấy & kiểu in ══════════════════════════════
         _section("📐  GIẤY & KIỂU IN")
 
@@ -1377,7 +1406,89 @@ class PDFBatchPrinterApp(ctk.CTk):
         )
         self.failover_combo.pack(fill="x")
 
-        # ══ Section 4: Tùy chọn thông minh ═════════════════════════
+        # ══ Section: Hóa đơn điện tử ══════════════════════════════
+        _section("🧾  HÓA ĐƠN ĐIỆN TỬ")
+        inv_row = _row()
+        for text in INVOICE_MODES:
+            ctk.CTkRadioButton(
+                inv_row, text=text, variable=self._invoice_mode_var, value=text,
+                command=self._on_invoice_mode_change,
+                font=ctk.CTkFont(family="Segoe UI", size=11),
+                text_color=THEME_COLORS["text"],
+                radiobutton_width=16, radiobutton_height=16,
+            ).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(
+            card, text="Tự động: hóa đơn ≥2 trang → 2 mặt cạnh dài • Cảnh báo: hỏi trước khi áp",
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            text_color=THEME_COLORS["text_muted"], wraplength=300, justify="left",
+        ).grid(row=_section.row, column=0, sticky="w", padx=14, pady=(0, 2))
+        _section.row += 1
+
+    def _on_invoice_mode_change(self):
+        self._save_config()
+        mode = self._invoice_mode_var.get()
+        if mode == INVOICE_OFF:
+            self._log("Đã tắt nhận diện hóa đơn điện tử")
+        else:
+            self._log(f"Nhận diện hóa đơn: {mode} — phân tích lại hàng đợi...")
+            self._reanalyze_queue_invoice()
+
+    def _reanalyze_queue_invoice(self):
+        """Chạy lại nhận diện cho file chưa phân tích (nền, không chặn UI)."""
+        import threading
+
+        def _worker():
+            changed = []
+
+            def _done():
+                if not getattr(self, "_is_alive", False):
+                    return
+                if changed:
+                    self._refresh_tree(preserve_selection=True)
+                    self._sync_page_ui_from_selection()
+                    for name in changed:
+                        self._log(f"🧾 Phát hiện hóa đơn điện tử: {name}")
+                    self._log(f"🧾 Nhận diện xong {len(changed)} hóa đơn trong hàng đợi")
+
+            for f in self.file_list:
+                if not f.invoice_analyzed:
+                    self._analyze_invoice(f)
+                    if f.invoice_detected:
+                        changed.append(f.filename)
+            self._async_queue.put((_done, ()))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _analyze_invoice(self, finfo) -> bool:
+        """Phân tích 1 file, điền document_type/invoice_*. Không bao giờ raise."""
+        if getattr(finfo, "invoice_analyzed", False):
+            return bool(getattr(finfo, "invoice_detected", False))
+        try:
+            if getattr(finfo, "is_converted", False) and not getattr(finfo, "is_converted_ready", False):
+                return False  # Office chưa convert — hẹn lúc chuẩn bị in
+            pdf = getattr(finfo, "pdf_path", "") or ""
+            if not pdf.lower().endswith(".pdf") or not os.path.exists(pdf):
+                finfo.invoice_analyzed = True
+                return False
+            res = inv_detect.detect_invoice(pdf, finfo.filename)
+            finfo.invoice_detected = bool(res["is_invoice"])
+            finfo.invoice_confidence = float(res.get("confidence", 0.0))
+            if res["is_invoice"]:
+                finfo.document_type = "e_invoice"
+            elif res.get("needs_ocr"):
+                finfo.document_type = "unknown_scan"
+            else:
+                finfo.document_type = "document"
+            finfo.invoice_analyzed = True
+            return finfo.invoice_detected
+        except Exception:
+            try:
+                finfo.invoice_analyzed = True
+            except Exception:
+                pass
+            return False
+
+        # ══ Section: Tùy chọn thông minh ═════════════════════════
         _section("✨  TÙY CHỌN")
         smart_frame = ctk.CTkFrame(card, fg_color=THEME_COLORS["card_alt"], corner_radius=8)
         smart_frame.grid(row=_section.row, column=0, sticky="ew", padx=14, pady=2)
@@ -1651,6 +1762,9 @@ class PDFBatchPrinterApp(ctk.CTk):
         import concurrent.futures
         import threading
 
+        # Snapshot Tk vars ở main thread (thread nền không được chạm Tk)
+        _inv_mode = self._invoice_mode_var.get()
+
         def _bg_loader():
             added_infos = []
             errors = []
@@ -1667,12 +1781,24 @@ class PDFBatchPrinterApp(ctk.CTk):
                     except Exception as exc:
                         errors.append(f"{os.path.basename(p)}: {exc}")
 
+            # Nhận diện hóa đơn từng file PDF (tuần tự, nhẹ — text đã có sẵn).
+            # _inv_mode đã snapshot ở main thread (Tk var cấm chạm từ nền).
+            detected_names = []
+            if _inv_mode != INVOICE_OFF:
+                for info in added_infos:
+                    try:
+                        if self._analyze_invoice(info) and info.invoice_detected:
+                            detected_names.append(info.filename)
+                    except Exception:
+                        pass
+
             def _on_done():
                 if not getattr(self, "_is_alive", False):
                     return
                 for info in added_infos:
                     self.file_list.append(info)
-                    self._log(f"+ {info.filename}  ({info.file_type}, {info.page_count} trang)")
+                    tag = " 🧾 Hóa đơn" if info.invoice_detected else ""
+                    self._log(f"+ {info.filename}  ({info.file_type}, {info.page_count} trang){tag}")
                 for err in errors:
                     self._log(f"⚠ Lỗi: {err}")
 
@@ -1749,6 +1875,8 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
+                f.doctype_display(),
+                f.duplex_display(),
             ))
             if preserve_selection and i in selected_indices:
                 items_to_select.append(item_id)
@@ -1828,6 +1956,8 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
+                f.doctype_display(),
+                f.duplex_display(),
             ))
             if i in new_indices:
                 items_to_select.append(item_id)
@@ -1873,6 +2003,8 @@ class PDFBatchPrinterApp(ctk.CTk):
                 f.pages_display(),
                 f.copies,
                 f"{icon} {f.status}",
+                f.doctype_display(),
+                f.duplex_display(),
             ))
             if i in new_indices:
                 items_to_select.append(item_id)
@@ -1903,6 +2035,8 @@ class PDFBatchPrinterApp(ctk.CTk):
             "pagesel": lambda f: f.pages_display(),
             "copies": lambda f: f.copies,
             "status": lambda f: str(f.status),
+            "doctype": lambda f: f.document_type,
+            "duplex": lambda f: f.duplex_display(),
         }
 
         k_fn = key_funcs.get(col_id, lambda f: f.filename.lower())
@@ -1917,6 +2051,8 @@ class PDFBatchPrinterApp(ctk.CTk):
             "pagesel": "Trang In",
             "copies": "Số Bản (✎)",
             "status": "Trạng Thái",
+            "doctype": "Loại",
+            "duplex": "2 Mặt",
         }
         for cid, label in headings_map.items():
             if cid == col_id:
@@ -1953,6 +2089,12 @@ class PDFBatchPrinterApp(ctk.CTk):
                 "file_type": f.file_type,
                 "pages": {"mode": getattr(f, "page_mode", "all"),
                           "value": getattr(f, "page_range_text", "")},
+                "document_type": getattr(f, "document_type", "document"),
+                "invoice_detected": bool(getattr(f, "invoice_detected", False)),
+                "invoice_confidence": float(getattr(f, "invoice_confidence", 0.0) or 0.0),
+                "duplex_mode": getattr(f, "duplex_mode", None),
+                "duplex_auto": bool(getattr(f, "duplex_auto", False)),
+                "duplex_override": bool(getattr(f, "duplex_override", False)),
             })
 
         try:
@@ -2018,6 +2160,17 @@ class PDFBatchPrinterApp(ctk.CTk):
                                 mode = "all"
                             info.page_mode = mode
                             info.page_range_text = str(pages.get("value", "") or "")
+                            info.document_type = str(it.get("document_type", "document") or "document")
+                            info.invoice_detected = bool(it.get("invoice_detected", False))
+                            try:
+                                info.invoice_confidence = float(it.get("invoice_confidence", 0.0) or 0.0)
+                            except Exception:
+                                info.invoice_confidence = 0.0
+                            dm = it.get("duplex_mode")
+                            info.duplex_mode = dm if dm in ("simplex", "long", "short") else None
+                            info.duplex_auto = bool(it.get("duplex_auto", False))
+                            info.duplex_override = bool(it.get("duplex_override", False))
+                            info.invoice_analyzed = True
                             added_infos.append(info)
                         except Exception as exc:
                             missing.append(f"{os.path.basename(src_path)} ({exc})")
@@ -2836,6 +2989,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             if not indices:
                 if hasattr(self, "page_file_lbl"):
                     self.page_file_lbl.configure(text="📄 Chưa chọn tệp tin")
+                self._sync_doc_ui(None)
                 return
             first = self.file_list[indices[0]]
             if len(indices) == 1:
@@ -2847,8 +3001,56 @@ class PDFBatchPrinterApp(ctk.CTk):
             self._page_range_var.set(PAGE_LABEL_BY_MODE.get(first.page_mode, PAGE_RANGE_ALL))
             self._custom_pages_var.set(first.page_range_text)
             self._refresh_custom_pages_visibility()
+            self._sync_doc_ui(first)
         finally:
             self._syncing_page_ui = False
+
+    def _sync_doc_ui(self, finfo=None):
+        """Hiển thị nhận diện + nút ghi đè duplex cho file đang chọn (§9-10)."""
+        try:
+            lbl = getattr(self, "doc_info_lbl", None)
+            btn = getattr(self, "btn_duplex_reset", None)
+            if lbl is None:
+                return
+            if finfo is None:
+                idxs = self._selected_indices()
+                finfo = self.file_list[idxs[0]] if idxs else None
+            if finfo is None:
+                lbl.configure(text="")
+                if btn is not None:
+                    btn.pack_forget()
+                return
+            if finfo.document_type == "e_invoice":
+                txt = (f"🧾 Hóa đơn điện tử • {int(finfo.invoice_confidence * 100)}% • "
+                       f"{finfo.page_count} trang")
+                if finfo.duplex_auto and finfo.duplex_mode == "long":
+                    txt += " • ✓ Tự động 2 mặt"
+                lbl.configure(text=txt)
+            elif finfo.document_type == "unknown_scan":
+                lbl.configure(text="🔍 Bản scan – chưa xác định loại")
+            else:
+                lbl.configure(text="📄 Tài liệu thường")
+            if btn is not None:
+                if finfo.duplex_auto:
+                    btn.pack(side="left", padx=(8, 0))
+                else:
+                    btn.pack_forget()
+        except Exception:
+            pass
+
+    def _reset_file_duplex(self):
+        """Người dùng ghi đè: file theo mặc định chung, không tự áp lại (§10)."""
+        for i in self._selected_indices():
+            f = self.file_list[i]
+            if is_edit_locked(f.status):
+                continue
+            f.duplex_mode = None
+            f.duplex_auto = False
+            f.duplex_override = True
+        self._refresh_tree(preserve_selection=True)
+        self._sync_doc_ui()
+        self._log("Đã chuyển file chọn về duplex mặc định chung (ghi đè nhận diện)")
+        self._save_config()
 
     def _refresh_custom_pages_visibility(self):
         if self._page_range_var.get() == PAGE_RANGE_CUSTOM:
@@ -3070,7 +3272,14 @@ class PDFBatchPrinterApp(ctk.CTk):
 
         # Snapshot cài đặt để thread nền không chạm widget Tk.
         # Trang in là thuộc tính RIÊNG từng file (finfo.page_mode/value).
+        # Duplex hiệu dụng: override người dùng > auto hóa đơn > mặc định chung.
         _printers_snapshot = list(printers_to_use)
+        _invoice_mode = self._invoice_mode_var.get()
+        _duplex_file_map = {
+            "simplex": win32con.DMDUP_SIMPLEX,
+            "long": win32con.DMDUP_VERTICAL,
+            "short": win32con.DMDUP_HORIZONTAL,
+        }
 
         import threading
 
@@ -3080,6 +3289,9 @@ class PDFBatchPrinterApp(ctk.CTk):
             total_copies_pages = 0
             total_blank_skipped = 0
             blank_logs: list[str] = []
+            warn_suggest: list[int] = []  # file idx hóa đơn chờ hỏi (chế độ cảnh báo)
+            auto_duplex_files: list[str] = []
+            saved_sheets = 0
             error: Optional[str] = None
 
             for doc_num, i in enumerate(active_indices, 1):
@@ -3091,6 +3303,13 @@ class PDFBatchPrinterApp(ctk.CTk):
                 except Exception as conv_exc:
                     error = f"Không thể chuẩn bị file: {finfo.filename}\n{conv_exc}"
                     break
+
+                # Nhận diện bù cho file Office/scan (PDF đã làm lúc nạp)
+                if _invoice_mode != INVOICE_OFF and not finfo.invoice_analyzed:
+                    try:
+                        self._analyze_invoice(finfo)
+                    except Exception:
+                        pass
 
                 # 1. Trang in RIÊNG từng file (không dùng biến chung)
                 try:
@@ -3107,6 +3326,27 @@ class PDFBatchPrinterApp(ctk.CTk):
 
                 if not p0:
                     p0 = [0]
+
+                # 2. Duplex hiệu dụng từng file (§6, §11-12, §18)
+                file_duplex = duplex_val
+                if finfo.duplex_override:
+                    if finfo.duplex_mode in _duplex_file_map:
+                        file_duplex = _duplex_file_map[finfo.duplex_mode]
+                elif finfo.duplex_mode in _duplex_file_map:
+                    file_duplex = _duplex_file_map[finfo.duplex_mode]
+                    if finfo.duplex_auto:
+                        auto_duplex_files.append(finfo.filename)
+                        saved_sheets += (len(p0) - (len(p0) + 1) // 2) * finfo.copies
+                elif (_invoice_mode == INVOICE_AUTO and finfo.invoice_detected
+                        and len(p0) >= 2):
+                    file_duplex = win32con.DMDUP_VERTICAL
+                    finfo.duplex_mode = "long"
+                    finfo.duplex_auto = True
+                    auto_duplex_files.append(finfo.filename)
+                    saved_sheets += (len(p0) - (len(p0) + 1) // 2) * finfo.copies
+                elif (_invoice_mode == INVOICE_WARN and finfo.invoice_detected
+                        and len(p0) >= 2):
+                    warn_suggest.append(i)
 
                 if orient_name == ORIENT_AUTO:
                     ori = (
@@ -3140,7 +3380,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 jobs.append(PrintJob(
                     index=i, pdf_path=finfo.pdf_path, filename=finfo.filename,
                     pages=p0, copies=finfo.copies, paper_size=paper,
-                    orientation=ori, duplex=duplex_val, fit_to_page=fit,
+                    orientation=ori, duplex=file_duplex, fit_to_page=fit,
                     binding_margin_mm=binding_margin_mm,
                     reverse_order=reverse_order, is_separator=False,
                 ))
@@ -3152,6 +3392,7 @@ class PDFBatchPrinterApp(ctk.CTk):
                 ), ()))
 
             def _on_prepared():
+                nonlocal saved_sheets
                 try:
                     prep_win.destroy()
                 except Exception:
@@ -3162,12 +3403,48 @@ class PDFBatchPrinterApp(ctk.CTk):
                     return
                 for line in blank_logs:
                     self._log(line)
+                # Chế độ "Chỉ cảnh báo": hỏi 1 lần duy nhất cho cả đợt (§7, §16)
+                if warn_suggest and _invoice_mode == INVOICE_WARN:
+                    names = [self.file_list[i].filename for i in warn_suggest
+                             if 0 <= i < len(self.file_list)]
+                    if names and messagebox.askyesno(
+                        "Phát hiện hóa đơn điện tử",
+                        f"💡 Phát hiện {len(names)} hóa đơn từ 2 trang thực tế trở lên:\n"
+                        + "\n".join(f"• {n}" for n in names[:8])
+                        + ("\n..." if len(names) > 8 else "")
+                        + "\n\nHệ thống đề xuất: In 2 mặt – Cạnh dài.\nÁp dụng?",
+                    ):
+                        for i in warn_suggest:
+                            if 0 <= i < len(self.file_list):
+                                f = self.file_list[i]
+                                f.duplex_mode = "long"
+                                f.duplex_auto = True
+                                auto_duplex_files.append(f.filename)
+                        for job in jobs:
+                            if job.index in warn_suggest and not job.is_separator:
+                                job.duplex = win32con.DMDUP_VERTICAL
+                        # Tính lại giấy tiết kiệm cho các file vừa áp dụng
+                        for i in warn_suggest:
+                            if 0 <= i < len(self.file_list):
+                                f = self.file_list[i]
+                                try:
+                                    n = len(f.resolve_pages())
+                                    saved_sheets += (n - (n + 1) // 2) * f.copies
+                                except Exception:
+                                    pass
+                        self._refresh_tree(preserve_selection=True)
+                    else:
+                        for i in warn_suggest:
+                            if 0 <= i < len(self.file_list):
+                                self.file_list[i].duplex_override = True
+                for name in auto_duplex_files:
+                    self._log(f"🧾 {name} — tự động In 2 mặt (Cạnh dài)")
                 self._finish_start_print(
                     jobs, active_indices, printers_to_use, failover_p,
                     duplex_name, paper, orient_name, reverse_order,
                     remove_blanks, use_separator,
                     total_pages, total_copies_pages, total_blank_skipped,
-                    action_title,
+                    action_title, auto_duplex_files, saved_sheets,
                 )
 
             self._async_queue.put((_on_prepared, ()))
@@ -3181,7 +3458,8 @@ class PDFBatchPrinterApp(ctk.CTk):
                             reverse_order: bool, remove_blanks: bool,
                             use_separator: bool, total_pages: int,
                             total_copies_pages: int, total_blank_skipped: int,
-                            action_title: str):
+                            action_title: str, auto_duplex_files: Optional[list] = None,
+                            saved_sheets: int = 0):
 
         # Confirmation Dialog
         p_desc = f"{len(printers_to_use)} máy in ({', '.join(printers_to_use)})" if len(printers_to_use) > 1 else printers_to_use[0]
@@ -3189,6 +3467,12 @@ class PDFBatchPrinterApp(ctk.CTk):
         blank_desc = f"Bật (đã loại bỏ {total_blank_skipped} trang trắng)" if remove_blanks else "Tắt"
         rev_desc = "Trang cuối về trang 1" if reverse_order else "Trang 1 đến trang cuối"
         sep_desc = "Có chèn tờ bìa phân cách" if use_separator else "Không chèn"
+        auto_duplex_files = auto_duplex_files or []
+        if auto_duplex_files:
+            inv_desc = (f"{len(auto_duplex_files)} hóa đơn tự 2 mặt "
+                        f"(tiết kiệm ~{saved_sheets} tờ)")
+        else:
+            inv_desc = "Không có"
 
         msg = (
             f"• Số tệp tin:             {len(active_indices)}\n"
@@ -3202,6 +3486,7 @@ class PDFBatchPrinterApp(ctk.CTk):
             f"• Thứ tự trang:           {rev_desc}\n"
             f"• Bỏ trang trắng:         {blank_desc}\n"
             f"• Trang bìa phân cách:    {sep_desc}\n"
+            f"• 🧾 Hóa đơn 2 mặt:       {inv_desc}\n"
         )
         if not messagebox.askyesno(action_title, msg, icon="question"):
             return

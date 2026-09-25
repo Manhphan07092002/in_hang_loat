@@ -1092,6 +1092,116 @@ class TestResponsive(unittest.TestCase):
         self.assertLessEqual(narrow, wide)
 
 
+# ================= INVOICE DETECT =================
+class TestInvoiceDetect(unittest.TestCase):
+    def _invoice_pdf(self, path, pages=2):
+        doc = fitz.open()
+        for i in range(pages):
+            p = doc.new_page(width=595, height=842)
+            p.insert_text((50, 50), "HOA DON GIA TRI GIA TANG (VAT INVOICE)", fontsize=14)
+            p.insert_text((50, 80), "Mau so: 01GTKT0/001 - Ky hieu: AA/24E", fontsize=11)
+            p.insert_text((50, 110), "Ma so thue: 0123456789 - Ngay lap: 01/01/2026", fontsize=11)
+            p.insert_text((50, 140), "Nguoi ban: CONG TY A - Nguoi mua: CONG TY B", fontsize=11)
+            p.insert_text((50, 170), "Tien hang: 1000000 - Thue suat 10% - Tong tien thanh toan: 1100000", fontsize=11)
+        doc.save(path)
+        doc.close()
+
+    def test_detect_by_content_not_name(self):
+        from app import invoice_detect as inv
+        tmp = tempfile.mkdtemp()
+        try:
+            p = os.path.join(tmp, "baogia_binh_thuong.pdf")
+            self._invoice_pdf(p)
+            res = inv.detect_invoice(p, "baogia_binh_thuong.pdf")
+            self.assertTrue(res["is_invoice"])
+            self.assertGreaterEqual(res["confidence"], 0.5)
+            self.assertEqual(res["method"], "text")
+            # Ten khong goi y van nhan dien duoc (uu tien noi dung)
+            self.assertTrue(any(s.startswith("text:") for s in res["signals"]))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_plain_doc_not_invoice(self):
+        from app import invoice_detect as inv
+        tmp = tempfile.mkdtemp()
+        try:
+            p = os.path.join(tmp, "hopdong.pdf")
+            doc = fitz.open()
+            pg = doc.new_page(width=595, height=842)
+            pg.insert_text((50, 50), "HOP DONG MUA BAN THiet BI VAN PHONG", fontsize=14)
+            pg.insert_text((50, 80), "Dieu 1: Ben A giao hang trong 30 ngay.", fontsize=11)
+            doc.save(p)
+            doc.close()
+            res = inv.detect_invoice(p, "hopdong.pdf")
+            self.assertFalse(res["is_invoice"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_filename_alone_never_enough(self):
+        from app import invoice_detect as inv
+        tmp = tempfile.mkdtemp()
+        try:
+            p = os.path.join(tmp, "HoaDon_001.pdf")
+            doc = fitz.open()
+            pg = doc.new_page(width=595, height=842)
+            pg.insert_text((50, 50), "BAO GIA DICH VU VE SINH", fontsize=14)
+            doc.save(p)
+            doc.close()
+            res = inv.detect_invoice(p, "HoaDon_001.pdf")
+            self.assertFalse(res["is_invoice"], "ten file khong du de ket luan")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_scan_needs_ocr_flag(self):
+        from app import invoice_detect as inv
+        tmp = tempfile.mkdtemp()
+        try:
+            p = os.path.join(tmp, "scan.pdf")
+            img = Image.new("RGB", (400, 300), "white")
+            ip = os.path.join(tmp, "s.png")
+            img.save(ip)
+            doc = fitz.open()
+            pg = doc.new_page(width=595, height=842)
+            pg.insert_image(fitz.Rect(50, 50, 450, 350), filename=ip)
+            doc.save(p)
+            doc.close()
+            res = inv.detect_invoice(p, "scan.pdf", use_ocr=False)
+            self.assertFalse(res["is_invoice"])
+            self.assertTrue(res["needs_ocr"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_suggest_duplex_rules(self):
+        from app.invoice_detect import suggest_duplex
+        self.assertEqual(suggest_duplex(True, 2, False), "long")
+        self.assertEqual(suggest_duplex(True, 4, False), "long")
+        self.assertIsNone(suggest_duplex(True, 1, False))   # 1 trang → 1 mat
+        self.assertIsNone(suggest_duplex(False, 2, False))  # khong phai hoa don
+        self.assertIsNone(suggest_duplex(True, 2, True))    # nguoi dung ghi de
+
+    def test_sheets_saved(self):
+        from app.invoice_detect import estimate_sheets_saved
+        total, sheets, saved = estimate_sheets_saved([(2, True)] * 10)
+        self.assertEqual((total, sheets, saved), (20, 10, 10))
+        total2, sheets2, saved2 = estimate_sheets_saved([(5, False), (4, True)])
+        self.assertEqual((total2, sheets2, saved2), (9, 7, 2))
+
+    def test_fileinfo_invoice_fields(self):
+        from app.pdf_manager import FileInfo
+        f = FileInfo(original_path="HD001.pdf", page_count=2)
+        self.assertFalse(f.invoice_detected)
+        self.assertEqual(f.document_type, "document")
+        self.assertIsNone(f.duplex_mode)
+        self.assertFalse(f.duplex_auto)
+        f.document_type = "e_invoice"
+        f.invoice_detected = True
+        f.invoice_confidence = 0.85
+        f.duplex_mode = "long"
+        f.duplex_auto = True
+        self.assertEqual(f.doctype_display(), "🧾 Hóa đơn")
+        self.assertEqual(f.duplex_display(), "Có (Tự động)")
+
+
 # ================= GUI PURE LOGIC (khong can Tk) =================
 class TestGUILogicHeadless(unittest.TestCase):
     def test_duplicate_filter_logic(self):

@@ -41,6 +41,9 @@ class FileInfo:
         "original_path", "pdf_path", "filename", "file_type",
         "is_converted", "is_converted_ready", "page_count", "file_size",
         "copies", "page_range_text", "page_mode", "status",
+        # Nhan dien hoa don + duplex rieng tung file
+        "document_type", "invoice_detected", "invoice_confidence",
+        "invoice_analyzed", "duplex_mode", "duplex_auto", "duplex_override",
     )
 
     def __init__(
@@ -67,6 +70,15 @@ class FileInfo:
         self.page_mode: str = page_mode or "all"  # all | custom | odd | even
         self.page_range_text: str = page_range_text  # custom value, e.g. "1,3,5"
         self.status: str = "Chờ in"
+        # document_type: "document" | "e_invoice" | "unknown_scan"
+        self.document_type: str = "document"
+        self.invoice_detected: bool = False
+        self.invoice_confidence: float = 0.0
+        self.invoice_analyzed: bool = False
+        # duplex_mode: None (= theo chung) | "simplex" | "long" | "short"
+        self.duplex_mode: Optional[str] = None
+        self.duplex_auto: bool = False  # True neu do nhan dien tu ap
+        self.duplex_override: bool = False  # True neu nguoi dung ghi de, khong tu ap lai
 
     def resolve_pages(self) -> list[int]:
         """0-based page indices for this file (validates custom ranges)."""
@@ -77,6 +89,24 @@ class FileInfo:
         """Short string for the queue 'Trang in' column."""
         from app.utils import describe_pages
         return describe_pages(self.page_mode, self.page_range_text)
+
+    def doctype_display(self) -> str:
+        """Short string for the queue 'Loại' column."""
+        if self.document_type == "e_invoice":
+            return "🧾 Hóa đơn"
+        if self.document_type == "unknown_scan":
+            return "🔍 Scan"
+        return "📄 Tài liệu"
+
+    def duplex_display(self) -> str:
+        """Short string for the queue '2 Mặt' column."""
+        if self.duplex_mode == "long":
+            return "Có (Tự động)" if self.duplex_auto else "Có"
+        if self.duplex_mode == "short":
+            return "Có (Lịch)"
+        if self.duplex_mode == "simplex":
+            return "Không"
+        return "Theo chung"
 
 
 # ═════════════════════════════════════════════════════════════════════════
